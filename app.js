@@ -353,6 +353,10 @@ async function autoOptimize(focus = "") {
   setOptimizeStatus("正在透過 Cloudflare 呼叫 ChatGPT 優化行程...", "neutral");
 
   try {
+    if (window.location.protocol === "file:") {
+      throw new Error("目前是直接開啟 index.html，Cloudflare Function 不會在這種模式下啟動。請部署到 Cloudflare Pages，或用 Wrangler Pages Dev 本機預覽。");
+    }
+
     const response = await fetch("/api/optimize-itinerary", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -366,18 +370,42 @@ async function autoOptimize(focus = "") {
       }),
     });
 
-    if (!response.ok) throw new Error("API 尚未部署或暫時無法使用。");
+    if (!response.ok) throw new Error(await apiErrorMessage(response));
     const payload = await response.json();
     const optimized = normalizeApiPayload(payload);
     applyOptimizedState(optimized);
     setOptimizeStatus(`已完成並套用 ${optimized.days.length} 天優化行程。`, "success");
   } catch (error) {
-    setOptimizeStatus(`${error.message} 請確認 Cloudflare Pages 已部署 Function，且 OPENAI_API_KEY 已設為 Secret。`, "error");
+    setOptimizeStatus(error.message, "error");
   } finally {
     document.querySelectorAll("#autoOptimize, #panelAutoOptimize, #heroAutoOptimize, [data-action='resource-optimize']").forEach((button) => {
       button.disabled = false;
     });
   }
+}
+
+async function apiErrorMessage(response) {
+  let detail = "";
+  try {
+    const payload = await response.json();
+    detail = payload.error ? `原因：${payload.error}` : "";
+  } catch {
+    detail = "";
+  }
+
+  if (response.status === 404) {
+    return "找不到 /api/optimize-itinerary。請確認 Cloudflare Pages 已部署 functions/api/optimize-itinerary.js。";
+  }
+
+  if (response.status === 403) {
+    return `API 拒絕此來源。請確認 Cloudflare Pages 的 ALLOWED_ORIGIN 是否與目前網址一致。${detail}`;
+  }
+
+  if (response.status === 500) {
+    return `Cloudflare Function 已啟動，但伺服器設定不完整。請確認 OPENAI_API_KEY 已設為 Secret。${detail}`;
+  }
+
+  return `API 暫時無法使用，HTTP ${response.status}。${detail}`;
 }
 
 function bindEvents() {

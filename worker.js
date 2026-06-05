@@ -1,36 +1,48 @@
-const jsonHeaders = {
-  "Content-Type": "application/json; charset=utf-8",
-  "Cache-Control": "no-store",
+const API_PATHS = new Set(["/api/optimize-itinerary", "/api/optimize"]);
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders(request, env) });
+    }
+
+    if (API_PATHS.has(url.pathname)) {
+      if (request.method !== "POST") {
+        return json(request, env, { error: "Method not allowed." }, 405);
+      }
+
+      return optimizeItinerary(request, env);
+    }
+
+    return env.ASSETS.fetch(request);
+  },
 };
 
-export async function onRequestOptions(context) {
-  return new Response(null, { status: 204, headers: corsHeaders(context.request, context.env) });
-}
-
-export async function onRequestPost(context) {
-  const { request, env } = context;
+async function optimizeItinerary(request, env) {
   const originError = validateOrigin(request, env);
-  if (originError) return json(context, { error: originError }, 403);
+  if (originError) return json(request, env, { error: originError }, 403);
 
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > 25000) {
-    return json(context, { error: "Request body is too large." }, 413);
+    return json(request, env, { error: "Request body is too large." }, 413);
   }
 
   if (!env.OPENAI_API_KEY) {
-    return json(context, { error: "OPENAI_API_KEY is not configured." }, 500);
+    return json(request, env, { error: "OPENAI_API_KEY is not configured." }, 500);
   }
 
   let input;
   try {
     input = await request.json();
   } catch {
-    return json(context, { error: "Invalid JSON request body." }, 400);
+    return json(request, env, { error: "Invalid JSON request body." }, 400);
   }
 
   const safeInput = normalizeTravelPlan(input);
   if (!safeInput.days.length) {
-    return json(context, { error: "At least one itinerary day is required." }, 400);
+    return json(request, env, { error: "At least one itinerary day is required." }, 400);
   }
 
   const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
@@ -57,15 +69,15 @@ export async function onRequestPost(context) {
 
   const data = await openaiResponse.json();
   if (!openaiResponse.ok) {
-    return json(context, { error: data.error?.message || "OpenAI request failed." }, openaiResponse.status);
+    return json(request, env, { error: data.error?.message || "OpenAI request failed." }, openaiResponse.status);
   }
 
   try {
     const outputText = data.output_text || extractOutputText(data);
     const optimized = normalizeTravelPlan(JSON.parse(outputText));
-    return json(context, optimized, 200);
+    return json(request, env, optimized, 200);
   } catch {
-    return json(context, { error: "OpenAI returned an unreadable itinerary." }, 502);
+    return json(request, env, { error: "OpenAI returned an unreadable itinerary." }, 502);
   }
 }
 
@@ -144,13 +156,14 @@ function extractOutputText(data) {
     .join("");
 }
 
-function json(context, body, status) {
-  return new Response(JSON.stringify(body), { status, headers: corsHeaders(context.request, context.env) });
+function json(request, env, body, status) {
+  return new Response(JSON.stringify(body), { status, headers: corsHeaders(request, env) });
 }
 
 function corsHeaders(request, env) {
   return {
-    ...jsonHeaders,
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": allowedOrigin(request, env),
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
