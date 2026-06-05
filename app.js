@@ -549,8 +549,8 @@ function currentPromptText() {
 }
 
 async function openChatGPT() {
-  setFeedbackStatus("ChatGPT 已開啟。請手動貼上你複製的提問內容。", "success");
-  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+  setFeedbackStatus("ChatGPT 已開啟臨時聊天。請手動貼上你複製的提問內容。", "success");
+  window.open("https://chatgpt.com/?temporary-chat=true", "_blank", "noopener,noreferrer");
 }
 
 function parseFeedbackText(rawText) {
