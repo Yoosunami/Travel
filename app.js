@@ -278,7 +278,9 @@ function renderResources() {
             <p>${item.description}</p>
           </div>
           <div class="link-list">
-            <a href="${chatLink(item.prompt)}" target="_blank" rel="noopener noreferrer">用目前行程詢問 ChatGPT</a>
+            <button class="text-button" type="button" data-action="copy-resource-prompt" data-prompt="${escapeHtml(item.prompt)}">
+              複製提問並開啟 ChatGPT
+            </button>
             ${item.links
               .map(([label, href]) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`)
               .join("")}
@@ -378,6 +380,18 @@ function setFeedbackStatus(message, tone = "neutral") {
   const status = document.querySelector("#feedbackStatus");
   status.textContent = message;
   status.className = `status-box ${tone}`;
+}
+
+async function openChatGPTWithPrompt(focus = "") {
+  const prompt = chatPrompt(focus);
+  try {
+    await navigator.clipboard.writeText(prompt);
+    setFeedbackStatus("已複製提問內容，ChatGPT 開啟後可直接貼上送出。", "success");
+  } catch {
+    document.querySelector("#feedbackText").value = prompt;
+    setFeedbackStatus("瀏覽器不允許自動複製，已把提問內容放到回饋欄位，可手動複製到 ChatGPT。", "neutral");
+  }
+  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 }
 
 function parseFeedbackText(rawText) {
@@ -577,6 +591,12 @@ function bindEvents() {
     feedbackDraft = null;
     setFeedbackStatus("內容已變更，請重新轉成行程草稿。");
     renderFeedbackPreview();
+  });
+
+  document.querySelector("#resourceGrid").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='copy-resource-prompt']");
+    if (!button) return;
+    openChatGPTWithPrompt(button.dataset.prompt || "");
   });
 
   document.querySelector("#clearDays").addEventListener("click", () => {
