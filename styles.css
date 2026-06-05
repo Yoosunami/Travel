@@ -166,6 +166,11 @@ h3 {
   text-decoration: none;
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .button.primary {
   border-color: var(--teal);
   color: #fff;
@@ -397,6 +402,10 @@ textarea {
   padding: 18px;
 }
 
+.import-panel {
+  margin-top: 18px;
+}
+
 .form-actions {
   display: flex;
   flex-wrap: wrap;
@@ -442,6 +451,11 @@ textarea {
   background: #fff;
   cursor: pointer;
   font-weight: 800;
+}
+
+.small-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 
 .small-button.danger {
@@ -556,6 +570,28 @@ textarea {
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.55;
+}
+
+.status-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--muted);
+  background: var(--paper);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.status-box.success {
+  border-color: rgba(17, 122, 120, 0.35);
+  color: var(--teal);
+  background: rgba(17, 122, 120, 0.08);
+}
+
+.status-box.error {
+  border-color: rgba(216, 93, 69, 0.35);
+  color: var(--coral);
+  background: rgba(216, 93, 69, 0.08);
 }
 
 .total-row {

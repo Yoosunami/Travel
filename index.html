@@ -9,7 +9,7 @@
     />
     <meta
       name="description"
-      content="Sumi 的專屬旅行規劃頁，整合彈性行程、動態資訊、預算規劃與旅伴分帳。"
+      content="Sumi 的專屬旅行規劃頁，整合彈性行程、AI 回饋匯入、動態資訊、預算規劃與旅伴分帳。"
     />
     <title>Sumi Travel Desk</title>
     <link rel="stylesheet" href="./styles.css" />
@@ -32,13 +32,13 @@
       <section id="overview" class="hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">Travel workspace for Sumi Lin</p>
-          <h1>以每日行程為核心，動態調整交通、住宿、美食與預算。</h1>
+          <h1>以每日行程為核心，讓 AI 優化結果可以回到你的旅行表。</h1>
           <p>
-            先排每天想怎麼玩，再用行程內容產生 ChatGPT 優化連結與 OTA 查詢入口。所有資料先存在你的瀏覽器，不放 API key，不送到未授權後端。
+            先排每天想怎麼玩，再把目前行程交給 ChatGPT 優化。回覆可以用 JSON 匯入，也預留 Cloudflare Worker API，之後可一鍵套用。
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#itinerary">編輯行程</a>
-            <a class="button secondary" href="#resources">優化資訊</a>
+            <a class="button secondary" href="#importPanel">匯入 AI 回饋</a>
           </div>
         </div>
         <div class="travel-board" aria-label="旅行規劃視覺摘要">
@@ -81,7 +81,7 @@
         <div>
           <div class="section-heading">
             <p class="eyebrow">Flexible itinerary</p>
-            <h2>用「一天」來規劃，而不是一格一格填</h2>
+            <h2>用「一天」來規劃，也能把 AI 結果套回來</h2>
           </div>
           <form id="dayForm" class="tool-panel">
             <label>
@@ -116,7 +116,31 @@
               <button id="cancelEditDay" class="button secondary hidden" type="button">取消編輯</button>
             </div>
           </form>
+
+          <section id="importPanel" class="tool-panel import-panel" aria-label="匯入 ChatGPT 優化結果">
+            <div class="panel-title">
+              <div>
+                <p class="eyebrow">Feedback loop</p>
+                <h3>貼上 ChatGPT JSON 結果</h3>
+              </div>
+              <button id="copyJsonPrompt" class="small-button" type="button">複製格式要求</button>
+            </div>
+            <p class="meta">
+              在 ChatGPT 優化後，請它只回傳 JSON，再貼到這裡。系統會先檢查格式，確認後才套用。
+            </p>
+            <label>
+              <span>AI 回覆 JSON</span>
+              <textarea id="importJson" rows="9" spellcheck="false" placeholder='{"days":[{"date":"2026-07-01","title":"抵達與散步","plan":"上午 / 抵達\n下午 / 入住\n晚上 / 晚餐","notes":"保留交通彈性"}]}'></textarea>
+            </label>
+            <div class="form-actions">
+              <button id="previewImport" class="button secondary" type="button">檢查內容</button>
+              <button id="applyImport" class="button primary" type="button" disabled>套用到行程</button>
+              <button id="autoOptimize" class="button secondary" type="button">嘗試一鍵優化</button>
+            </div>
+            <div id="importStatus" class="status-box" role="status">等待貼上 ChatGPT 回覆。</div>
+          </section>
         </div>
+
         <div class="tool-panel result-panel itinerary-panel">
           <div class="panel-title">
             <h3>目前行程</h3>
@@ -126,7 +150,7 @@
           </div>
           <ol id="dayList" class="timeline"></ol>
           <a id="chatPromptLink" class="button secondary wide" href="#" target="_blank" rel="noopener noreferrer">
-            用 ChatGPT 重新優化全部行程
+            用 ChatGPT 優化並產生可匯入 JSON
           </a>
         </div>
       </section>
