@@ -396,6 +396,22 @@ textarea {
   text-decoration: none;
 }
 
+.text-button {
+  width: fit-content;
+  border: 0;
+  padding: 0;
+  color: var(--teal);
+  background: transparent;
+  cursor: pointer;
+  font-weight: 800;
+  text-align: left;
+}
+
+.text-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
 .tool-panel {
   display: grid;
   gap: 14px;

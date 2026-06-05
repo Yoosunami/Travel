@@ -140,12 +140,15 @@ function normalizeRequest(value) {
     travelers,
     budgetMode,
     budgetAmount,
+    focus: clean(value.focus).slice(0, 300),
     days,
   };
 }
 
 function buildPrompt(input) {
   return `請優化以下旅行規劃，重點是每日動線、交通效率、美食安排、穿搭拍照時間、預算合理性與備案。
+
+${input.focus ? `這次優化請特別聚焦：${input.focus}` : ""}
 
 請保留使用者原本偏好，但可以重排每日活動。不要加入敏感個資欄位。
 

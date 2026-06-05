@@ -72,7 +72,6 @@ const defaultState = {
 };
 
 let editingDayIndex = null;
-let pendingImport = null;
 const state = loadState();
 const formatter = new Intl.NumberFormat("zh-TW");
 
@@ -197,48 +196,6 @@ function budgetSummary() {
   return { travelers, days, total, perPerson, perDay: total / days };
 }
 
-function importSchemaPrompt() {
-  return `請優化我的旅行規劃，並且只回傳一個可被 JSON.parse 解析的 JSON 物件，不要 Markdown，不要說明文字。
-
-JSON 格式必須是：
-{
-  "tripName": "旅行名稱，可省略",
-  "travelers": 2,
-  "budgetMode": "total",
-  "budgetAmount": 45000,
-  "days": [
-    {
-      "date": "YYYY-MM-DD 或空字串",
-      "title": "當日主題",
-      "plan": "整天行程，用換行分隔，例如 上午 / ...\\n下午 / ...\\n晚上 / ...",
-      "notes": "交通、訂位、風險與備案"
-    }
-  ]
-}
-
-限制：
-- days 最多 60 天。
-- 不要包含護照、信用卡、訂房編號等敏感資料。
-- 如果日期未知，date 請用空字串。
-- budgetMode 只能是 "total" 或 "perPerson"。`;
-}
-
-function chatLink(prompt) {
-  const summary = budgetSummary();
-  const fullPrompt = `${prompt}
-
-${importSchemaPrompt()}
-
-目前資料：
-旅行名稱：${state.tripName}
-旅行人數：${summary.travelers}
-總預算：${currency(summary.total)}
-每人預算：${currency(summary.perPerson)}
-目前行程：
-${itineraryText()}`;
-  return `https://chatgpt.com/?q=${encodeURIComponent(fullPrompt)}`;
-}
-
 function renderBasics() {
   document.querySelector("#tripName").value = state.tripName;
   document.querySelector("#travelers").value = state.travelers;
@@ -273,9 +230,6 @@ function renderDays() {
         .join("")
     : `<li><span class="meta">還沒有行程。先用左側輸入一天完整安排。</span></li>`;
 
-  document.querySelector("#chatPromptLink").href = chatLink(
-    "請重新優化這趟旅行的每日行程，保留穿搭拍照、美食、交通效率，並列出風險與備案。",
-  );
 }
 
 function renderResources() {
@@ -290,7 +244,7 @@ function renderResources() {
             <p>${item.description}</p>
           </div>
           <div class="link-list">
-            <a href="${chatLink(item.prompt)}" target="_blank" rel="noopener noreferrer">用目前行程優化</a>
+            <button class="text-button" type="button" data-action="resource-optimize" data-prompt="${escapeHtml(item.prompt)}">用目前行程優化</button>
             ${item.links
               .map(([label, href]) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`)
               .join("")}
@@ -363,23 +317,13 @@ function resetDayForm() {
   document.querySelector("#cancelEditDay").classList.add("hidden");
 }
 
-function setImportStatus(message, tone = "neutral") {
-  const status = document.querySelector("#importStatus");
+function setOptimizeStatus(message, tone = "neutral") {
+  const status = document.querySelector("#optimizeStatus");
   status.textContent = message;
   status.className = `status-box ${tone}`;
 }
 
-function extractJson(text) {
-  const raw = clean(text);
-  if (!raw) throw new Error("請先貼上 ChatGPT 回覆。");
-
-  const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1].trim() : raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
-  if (!candidate || !candidate.startsWith("{")) throw new Error("找不到 JSON 物件。請要求 ChatGPT 只回傳 JSON。");
-  return JSON.parse(candidate);
-}
-
-function normalizeImportPayload(payload) {
+function normalizeApiPayload(payload) {
   const imported = normalizeState({
     ...state,
     ...payload,
@@ -387,41 +331,26 @@ function normalizeImportPayload(payload) {
     expenses: state.expenses,
   });
 
-  if (!imported.days.length) throw new Error("JSON 裡需要至少一筆有效 days 行程。");
+  if (!imported.days.length) throw new Error("API 回傳需要至少一筆有效行程。");
   return imported;
 }
 
-function previewImport() {
-  try {
-    const payload = extractJson(document.querySelector("#importJson").value);
-    pendingImport = normalizeImportPayload(payload);
-    document.querySelector("#applyImport").disabled = false;
-    setImportStatus(`格式正確：將匯入 ${pendingImport.days.length} 天行程。確認後可套用。`, "success");
-  } catch (error) {
-    pendingImport = null;
-    document.querySelector("#applyImport").disabled = true;
-    setImportStatus(error.message, "error");
-  }
-}
-
-function applyImport() {
-  if (!pendingImport) return;
-  state.tripName = pendingImport.tripName;
-  state.travelers = pendingImport.travelers;
-  state.budgetMode = pendingImport.budgetMode;
-  state.budgetAmount = pendingImport.budgetAmount;
-  state.days = pendingImport.days;
+function applyOptimizedState(optimized) {
+  state.tripName = optimized.tripName;
+  state.travelers = optimized.travelers;
+  state.budgetMode = optimized.budgetMode;
+  state.budgetAmount = optimized.budgetAmount;
+  state.days = optimized.days;
   saveState();
-  pendingImport = null;
-  document.querySelector("#applyImport").disabled = true;
-  setImportStatus("已套用 ChatGPT 優化結果。", "success");
   renderAll();
 }
 
-async function autoOptimize() {
-  const button = document.querySelector("#autoOptimize");
-  button.disabled = true;
-  setImportStatus("正在嘗試呼叫 Cloudflare Worker API...", "neutral");
+async function autoOptimize(focus = "") {
+  const buttons = document.querySelectorAll("#autoOptimize, #panelAutoOptimize, #heroAutoOptimize, [data-action='resource-optimize']");
+  buttons.forEach((button) => {
+    button.disabled = true;
+  });
+  setOptimizeStatus("正在透過 Cloudflare 呼叫 ChatGPT 優化行程...", "neutral");
 
   try {
     const response = await fetch("/api/optimize-itinerary", {
@@ -433,19 +362,21 @@ async function autoOptimize() {
         budgetMode: state.budgetMode,
         budgetAmount: state.budgetAmount,
         days: state.days,
+        focus: clean(focus),
       }),
     });
 
     if (!response.ok) throw new Error("API 尚未部署或暫時無法使用。");
     const payload = await response.json();
-    pendingImport = normalizeImportPayload(payload);
-    document.querySelector("#importJson").value = JSON.stringify(payload, null, 2);
-    document.querySelector("#applyImport").disabled = false;
-    setImportStatus(`API 已回傳 ${pendingImport.days.length} 天行程，確認後可套用。`, "success");
+    const optimized = normalizeApiPayload(payload);
+    applyOptimizedState(optimized);
+    setOptimizeStatus(`已完成並套用 ${optimized.days.length} 天優化行程。`, "success");
   } catch (error) {
-    setImportStatus(`${error.message} 目前可先用 ChatGPT 連結產生 JSON，再貼回匯入。`, "error");
+    setOptimizeStatus(`${error.message} 請確認 Cloudflare Pages 已部署 Function，且 OPENAI_API_KEY 已設為 Secret。`, "error");
   } finally {
-    button.disabled = false;
+    document.querySelectorAll("#autoOptimize, #panelAutoOptimize, #heroAutoOptimize, [data-action='resource-optimize']").forEach((button) => {
+      button.disabled = false;
+    });
   }
 }
 
@@ -531,24 +462,14 @@ function bindEvents() {
     renderExpenses();
   });
 
-  document.querySelector("#copyJsonPrompt").addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(importSchemaPrompt());
-      setImportStatus("已複製 JSON 格式要求，可貼到 ChatGPT。", "success");
-    } catch {
-      document.querySelector("#importJson").value = importSchemaPrompt();
-      setImportStatus("瀏覽器不允許自動複製，已把格式要求放進文字框，可手動複製。", "neutral");
-    }
-  });
+  document.querySelector("#autoOptimize").addEventListener("click", () => autoOptimize());
+  document.querySelector("#panelAutoOptimize").addEventListener("click", () => autoOptimize());
+  document.querySelector("#heroAutoOptimize").addEventListener("click", () => autoOptimize());
 
-  document.querySelector("#previewImport").addEventListener("click", previewImport);
-  document.querySelector("#applyImport").addEventListener("click", applyImport);
-  document.querySelector("#autoOptimize").addEventListener("click", autoOptimize);
-
-  document.querySelector("#importJson").addEventListener("input", () => {
-    pendingImport = null;
-    document.querySelector("#applyImport").disabled = true;
-    setImportStatus("內容已變更，請重新檢查。");
+  document.querySelector("#resourceGrid").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action='resource-optimize']");
+    if (!button) return;
+    autoOptimize(button.dataset.prompt || "");
   });
 
   document.querySelector("#clearDays").addEventListener("click", () => {
