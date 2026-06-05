@@ -129,9 +129,20 @@
             <p class="meta">
               先用下方連結把目前資料帶到 ChatGPT。優化後把文字貼回來，網站會嘗試辨識 Day 1、Day 2 或「第 1 天」段落；如果格式不明，會保留成一筆完整草稿，不會清空行程。
             </p>
-            <a id="optimizePromptLink" class="button secondary wide" href="#" target="_blank" rel="noopener noreferrer">
-              用 ChatGPT 優化目前行程
-            </a>
+            <button id="preparePrompt" class="button secondary wide" type="button">產生 ChatGPT 提問內容</button>
+            <label>
+              <span>要貼到 ChatGPT 的提問</span>
+              <textarea
+                id="promptText"
+                rows="8"
+                readonly
+                placeholder="按「產生 ChatGPT 提問內容」後，這裡會出現整理好的行程與要求。"
+              ></textarea>
+            </label>
+            <div class="form-actions">
+              <button id="copyPrompt" class="button secondary" type="button">複製提問</button>
+              <button id="openChatGPT" class="button primary" type="button">開啟 ChatGPT</button>
+            </div>
             <label>
               <span>ChatGPT 優化結果</span>
               <textarea
@@ -159,9 +170,9 @@
             </button>
           </div>
           <ol id="dayList" class="timeline"></ol>
-          <a id="panelOptimizeLink" class="button secondary wide" href="#" target="_blank" rel="noopener noreferrer">
+          <button id="panelOptimizeLink" class="button secondary wide" type="button">
             用 ChatGPT 重新優化
-          </a>
+          </button>
         </div>
       </section>
 

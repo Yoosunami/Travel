@@ -224,10 +224,6 @@ Day 2：當日主題
 ${itineraryText()}`;
 }
 
-function chatLink(focus = "") {
-  return `https://chatgpt.com/?q=${encodeURIComponent(chatPrompt(focus))}`;
-}
-
 function renderBasics() {
   document.querySelector("#tripName").value = state.tripName;
   document.querySelector("#travelers").value = state.travelers;
@@ -262,8 +258,6 @@ function renderDays() {
         .join("")
     : `<li><span class="meta">還沒有行程。先用左側輸入一天完整安排。</span></li>`;
 
-  document.querySelector("#optimizePromptLink").href = chatLink();
-  document.querySelector("#panelOptimizeLink").href = chatLink();
 }
 
 function renderResources() {
@@ -279,7 +273,7 @@ function renderResources() {
           </div>
           <div class="link-list">
             <button class="text-button" type="button" data-action="copy-resource-prompt" data-prompt="${escapeHtml(item.prompt)}">
-              複製提問並開啟 ChatGPT
+              產生提問並開啟 ChatGPT
             </button>
             ${item.links
               .map(([label, href]) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`)
@@ -382,15 +376,26 @@ function setFeedbackStatus(message, tone = "neutral") {
   status.className = `status-box ${tone}`;
 }
 
-async function openChatGPTWithPrompt(focus = "") {
+function preparePrompt(focus = "") {
   const prompt = chatPrompt(focus);
+  document.querySelector("#promptText").value = prompt;
+  setFeedbackStatus("已產生提問內容。請複製後貼到 ChatGPT，再把優化結果貼回下方。", "success");
+  return prompt;
+}
+
+async function copyPrompt(focus = "") {
+  const prompt = document.querySelector("#promptText").value || preparePrompt(focus);
   try {
     await navigator.clipboard.writeText(prompt);
-    setFeedbackStatus("已複製提問內容，ChatGPT 開啟後可直接貼上送出。", "success");
+    setFeedbackStatus("已複製提問內容。ChatGPT 開啟後請貼上送出。", "success");
   } catch {
-    document.querySelector("#feedbackText").value = prompt;
-    setFeedbackStatus("瀏覽器不允許自動複製，已把提問內容放到回饋欄位，可手動複製到 ChatGPT。", "neutral");
+    setFeedbackStatus("瀏覽器不允許自動複製，請手動選取上方提問內容並複製。", "error");
   }
+}
+
+async function openChatGPTWithPrompt(focus = "") {
+  preparePrompt(focus);
+  await copyPrompt(focus);
   window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 }
 
@@ -587,6 +592,10 @@ function bindEvents() {
   document.querySelector("#previewFeedback").addEventListener("click", previewFeedback);
   document.querySelector("#applyFeedback").addEventListener("click", applyFeedback);
   document.querySelector("#undoFeedback").addEventListener("click", undoFeedback);
+  document.querySelector("#preparePrompt").addEventListener("click", () => preparePrompt());
+  document.querySelector("#copyPrompt").addEventListener("click", () => copyPrompt());
+  document.querySelector("#openChatGPT").addEventListener("click", () => openChatGPTWithPrompt());
+  document.querySelector("#panelOptimizeLink").addEventListener("click", () => openChatGPTWithPrompt());
   document.querySelector("#feedbackText").addEventListener("input", () => {
     feedbackDraft = null;
     setFeedbackStatus("內容已變更，請重新轉成行程草稿。");
