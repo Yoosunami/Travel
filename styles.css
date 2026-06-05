@@ -500,6 +500,52 @@ textarea {
   gap: 12px;
 }
 
+.day-card details {
+  display: grid;
+  gap: 12px;
+}
+
+.day-summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.day-summary::-webkit-details-marker {
+  display: none;
+}
+
+.day-summary > div {
+  display: grid;
+  gap: 7px;
+  padding-right: 24px;
+  position: relative;
+}
+
+.day-summary > div::after {
+  content: "+";
+  position: absolute;
+  top: 2px;
+  right: 0;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  background: #fff;
+  font-weight: 900;
+}
+
+.day-card details[open] .day-summary > div::after {
+  content: "-";
+}
+
+.day-card-body {
+  display: grid;
+  gap: 10px;
+}
+
 .day-card-head {
   display: flex;
   justify-content: space-between;

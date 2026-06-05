@@ -240,18 +240,23 @@ function renderDays() {
         .map(
           (day, index) => `
             <li class="day-card">
-              <div class="day-card-head">
-                <div>
-                  <span class="pill">Day ${index + 1}</span>
-                  <strong>${escapeHtml(day.date || "未定日期")} · ${escapeHtml(day.title)}</strong>
+              <details>
+                <summary class="day-summary">
+                  <div>
+                    <span class="pill">Day ${index + 1}</span>
+                    <strong>${escapeHtml(day.date || "未定日期")} · ${escapeHtml(day.title)}</strong>
+                    <span class="meta">${escapeHtml(dayPreview(day))}</span>
+                  </div>
+                </summary>
+                <div class="day-card-body">
+                  <p class="day-plan">${nl2br(day.plan)}</p>
+                  <span class="meta">${escapeHtml(day.notes || "尚無備註")}</span>
                 </div>
                 <div class="row-actions">
                   <button class="small-button" type="button" data-action="edit-day" data-index="${index}">編輯</button>
                   <button class="small-button danger" type="button" data-action="delete-day" data-index="${index}">刪除</button>
                 </div>
-              </div>
-              <p class="day-plan">${nl2br(day.plan)}</p>
-              <span class="meta">${escapeHtml(day.notes || "尚無備註")}</span>
+              </details>
             </li>
           `,
         )
@@ -339,12 +344,19 @@ function renderFeedbackPreview() {
         .map(
           (day, index) => `
             <li class="day-card">
-              <div>
-                <span class="pill">Draft ${index + 1}</span>
-                <strong>${escapeHtml(day.date || "未定日期")} · ${escapeHtml(day.title)}</strong>
-              </div>
-              <p class="day-plan">${nl2br(day.plan)}</p>
-              <span class="meta">${escapeHtml(day.notes || "尚無備註")}</span>
+              <details>
+                <summary class="day-summary">
+                  <div>
+                    <span class="pill">Draft ${index + 1}</span>
+                    <strong>${escapeHtml(day.date || "未定日期")} · ${escapeHtml(day.title)}</strong>
+                    <span class="meta">${escapeHtml(dayPreview(day))}</span>
+                  </div>
+                </summary>
+                <div class="day-card-body">
+                  <p class="day-plan">${nl2br(day.plan)}</p>
+                  <span class="meta">${escapeHtml(day.notes || "尚無備註")}</span>
+                </div>
+              </details>
             </li>
           `,
         )
@@ -361,6 +373,10 @@ function renderAll() {
   renderBudget();
   renderExpenses();
   renderFeedbackPreview();
+}
+
+function dayPreview(day) {
+  return clean(day.plan).split("\n").find(Boolean) || day.notes || "尚無行程內容";
 }
 
 function resetDayForm() {
