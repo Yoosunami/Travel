@@ -234,15 +234,17 @@ ${itineraryText()}`;
 
 function resourcePrompt(resource) {
   const summary = budgetSummary();
-  const shared = `旅行名稱：${state.tripName}
+  const tripBasics = `旅行名稱：${state.tripName}
 旅行人數：${summary.travelers}
 總預算：${currency(summary.total)}
-每人預算：${currency(summary.perPerson)}
-目前行程摘要：
-${compactItineraryText()}`;
+每人預算：${currency(summary.perPerson)}`;
 
   const prompts = {
     flight: `請只針對「機票」協助我規劃，不要重排行程。
+
+行程資料使用規則：
+- 機票只需要參考第一天與最後一天。
+- 不需要分析中間每天的景點。
 
 請輸出：
 1. 建議抵達與離開時間帶
@@ -250,8 +252,15 @@ ${compactItineraryText()}`;
 3. 哪幾天行程不適合太早或太晚航班
 4. Google Flights / Skyscanner 搜尋關鍵條件
 
-${shared}`,
+${tripBasics}
+
+第一天與最後一天行程：
+${edgeItineraryText()}`,
     stay: `請只針對「住宿」協助我規劃，不要重排行程。
+
+行程資料使用規則：
+- 請依每天主要活動區域判斷住宿區域。
+- 不需要改寫每日行程。
 
 請輸出：
 1. 建議住宿區域排序
@@ -259,8 +268,15 @@ ${shared}`,
 3. 交通時間與晚歸安全性注意
 4. Booking / Agoda 篩選條件，例如取消政策、房型、交通距離
 
-${shared}`,
+${tripBasics}
+
+每日行程：
+${fullItineraryText()}`,
     food: `請只針對「飲食」協助我規劃，不要重排行程。
+
+行程資料使用規則：
+- 請依每天活動區域安排用餐區域。
+- 不需要重排景點，只補餐飲策略。
 
 請輸出：
 1. 每一天適合安排早餐、午餐、咖啡、晚餐的區域
@@ -268,8 +284,15 @@ ${shared}`,
 3. 預算分配與備案餐廳類型
 4. Google Maps / Tabelog 搜尋關鍵字
 
-${shared}`,
+${tripBasics}
+
+每日行程：
+${fullItineraryText()}`,
     transit: `請只針對「交通」協助我規劃，不要重排行程。
+
+行程資料使用規則：
+- 請依每天行程順序檢查交通動線。
+- 不需要重排行程，只指出風險與備案。
 
 請輸出：
 1. 每天主要移動路線與可能轉乘
@@ -277,8 +300,16 @@ ${shared}`,
 3. 尖峰時間、雨天、行李移動風險
 4. Google Maps / Rome2Rio 查詢時要確認的項目
 
-${shared}`,
+${tripBasics}
+
+每日行程：
+${fullItineraryText()}`,
     all: `請依序針對「機票、住宿、飲食、交通」協助我檢查旅行規劃，但不要重排行程，也不要輸出完整每日行程。
+
+行程資料使用規則：
+- 機票只參考第一天與最後一天。
+- 住宿、飲食、交通可參考全部每日行程。
+- 回答要精簡，重點列出需要我執行的檢查項目。
 
 請用精簡格式輸出：
 1. 機票：建議抵達/離開時間、轉機與行李注意
@@ -287,19 +318,38 @@ ${shared}`,
 4. 交通：每日移動風險、票券、尖峰與雨天備案
 5. 優先處理清單：最多 8 項
 
-${shared}`,
+${tripBasics}
+
+第一天與最後一天：
+${edgeItineraryText()}
+
+全部每日行程：
+${fullItineraryText()}`,
   };
 
   return prompts[resource.key] || chatPrompt();
 }
 
-function compactItineraryText() {
+function fullItineraryText() {
   if (!state.days.length) return "尚未建立行程。";
   return state.days
-    .map((day, index) => {
-      const lines = clean(day.plan).split("\n").filter(Boolean).slice(0, 4).join("\n");
-      return `Day ${index + 1} ${day.date || "未定日期"} ${day.title}\n${lines}${day.notes ? `\n備註：${day.notes}` : ""}`;
-    })
+    .map((day, index) => `Day ${index + 1} ${day.date || "未定日期"} ${day.title}\n${day.plan}${day.notes ? `\n備註：${day.notes}` : ""}`)
+    .join("\n\n");
+}
+
+function edgeItineraryText() {
+  if (!state.days.length) return "尚未建立行程。";
+  const first = state.days[0];
+  const last = state.days[state.days.length - 1];
+  const items =
+    first === last
+      ? [{ day: first, label: "第一天 / 最後一天" }]
+      : [
+          { day: first, label: "第一天" },
+          { day: last, label: "最後一天" },
+        ];
+  return items
+    .map(({ day, label }) => `${label} ${day.date || "未定日期"} ${day.title}\n${day.plan}${day.notes ? `\n備註：${day.notes}` : ""}`)
     .join("\n\n");
 }
 
@@ -489,7 +539,9 @@ async function copyPrompt(focus = "") {
 }
 
 async function openChatGPTWithPrompt(focus = "") {
-  preparePrompt(focus);
+  if (!document.querySelector("#promptText").value) {
+    preparePrompt(focus);
+  }
   await copyPrompt(focus);
   window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 }
