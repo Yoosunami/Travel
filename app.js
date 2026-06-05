@@ -3,6 +3,14 @@ const previousStorageKeys = ["sumi-travel-desk-v3", "sumi-travel-desk-v2", "sumi
 
 const resources = [
   {
+    key: "all",
+    title: "整合",
+    icon: "ALL",
+    tone: "all",
+    description: "一次檢查機票、住宿、飲食、交通，但仍保留精簡輸出。",
+    links: [["ChatGPT", "https://chatgpt.com/"]],
+  },
+  {
     key: "flight",
     title: "機票",
     icon: "AIR",
@@ -270,6 +278,16 @@ ${shared}`,
 4. Google Maps / Rome2Rio 查詢時要確認的項目
 
 ${shared}`,
+    all: `請依序針對「機票、住宿、飲食、交通」協助我檢查旅行規劃，但不要重排行程，也不要輸出完整每日行程。
+
+請用精簡格式輸出：
+1. 機票：建議抵達/離開時間、轉機與行李注意
+2. 住宿：建議住宿區域、交通距離、取消政策
+3. 飲食：每天適合用餐區域、訂位與排隊風險
+4. 交通：每日移動風險、票券、尖峰與雨天備案
+5. 優先處理清單：最多 8 項
+
+${shared}`,
   };
 
   return prompts[resource.key] || chatPrompt();
@@ -338,8 +356,8 @@ function renderResources() {
             <p>${item.description}</p>
           </div>
           <div class="link-list">
-            <button class="text-button" type="button" data-action="copy-resource-prompt" data-resource-key="${item.key}">
-              產生提問並開啟 ChatGPT
+            <button class="text-button" type="button" data-action="prepare-resource-prompt" data-resource-key="${item.key}">
+              產生提問
             </button>
             ${item.links
               .map(([label, href]) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`)
@@ -680,10 +698,10 @@ function bindEvents() {
   });
 
   document.querySelector("#resourceGrid").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-action='copy-resource-prompt']");
+    const button = event.target.closest("button[data-action='prepare-resource-prompt']");
     if (!button) return;
     const resource = resources.find((item) => item.key === button.dataset.resourceKey);
-    openChatGPTWithPrompt(resource || "");
+    preparePrompt(resource || "");
   });
 
   document.querySelector("#clearDays").addEventListener("click", () => {

@@ -380,6 +380,10 @@ textarea {
   --card-color: var(--gold);
 }
 
+.resource-card.all {
+  --card-color: var(--ink);
+}
+
 .resource-card p {
   color: var(--muted);
   line-height: 1.6;
