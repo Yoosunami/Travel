@@ -529,20 +529,31 @@ function preparePrompt(focus = "") {
 }
 
 async function copyPrompt(focus = "") {
-  const prompt = document.querySelector("#promptText").value || preparePrompt(focus);
+  const prompt = currentPromptText();
+  if (!prompt) {
+    setFeedbackStatus("請先產生提問內容，再按複製。", "error");
+    return;
+  }
   try {
     await navigator.clipboard.writeText(prompt);
     setFeedbackStatus("已複製提問內容。ChatGPT 開啟後請貼上送出。", "success");
   } catch {
+    document.querySelector("#promptText").focus();
+    document.querySelector("#promptText").select();
     setFeedbackStatus("瀏覽器不允許自動複製，請手動選取上方提問內容並複製。", "error");
   }
 }
 
-async function openChatGPTWithPrompt(focus = "") {
-  if (!document.querySelector("#promptText").value) {
-    preparePrompt(focus);
+function currentPromptText() {
+  return document.querySelector("#promptText").value.trim();
+}
+
+async function openChatGPT() {
+  if (!currentPromptText()) {
+    setFeedbackStatus("請先產生並複製提問內容，再開啟 ChatGPT。", "error");
+    return;
   }
-  await copyPrompt(focus);
+  setFeedbackStatus("ChatGPT 已開啟。請貼上你剛剛複製的提問內容。", "success");
   window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 }
 
@@ -741,8 +752,8 @@ function bindEvents() {
   document.querySelector("#undoFeedback").addEventListener("click", undoFeedback);
   document.querySelector("#preparePrompt").addEventListener("click", () => preparePrompt());
   document.querySelector("#copyPrompt").addEventListener("click", () => copyPrompt());
-  document.querySelector("#openChatGPT").addEventListener("click", () => openChatGPTWithPrompt());
-  document.querySelector("#panelOptimizeLink").addEventListener("click", () => openChatGPTWithPrompt());
+  document.querySelector("#openChatGPT").addEventListener("click", openChatGPT);
+  document.querySelector("#panelOptimizeLink").addEventListener("click", () => preparePrompt());
   document.querySelector("#feedbackText").addEventListener("input", () => {
     feedbackDraft = null;
     setFeedbackStatus("內容已變更，請重新轉成行程草稿。");
