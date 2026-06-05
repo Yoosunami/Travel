@@ -1,5 +1,5 @@
-const storageKey = "sumi-travel-desk-v3";
-const previousStorageKeys = ["sumi-travel-desk-v2", "sumi-travel-desk-v1"];
+const storageKey = "sumi-travel-desk-v4";
+const previousStorageKeys = ["sumi-travel-desk-v3", "sumi-travel-desk-v2", "sumi-travel-desk-v1"];
 
 const resources = [
   {
@@ -69,9 +69,11 @@ const defaultState = {
       notes: "同一區域集中安排，減少交通時間。",
     },
   ],
+  undoDays: null,
 };
 
 let editingDayIndex = null;
+let feedbackDraft = null;
 const state = loadState();
 const formatter = new Intl.NumberFormat("zh-TW");
 
@@ -127,6 +129,7 @@ function normalizeState(value) {
     budgetAmount: clampNumber(value.budgetAmount, 0, 99999999, defaultState.budgetAmount),
     days: normalizeDays(value.days),
     expenses: Array.isArray(value.expenses) ? value.expenses : [],
+    undoDays: Array.isArray(value.undoDays) ? normalizeDays(value.undoDays) : null,
   };
 }
 
@@ -181,9 +184,7 @@ function nl2br(value) {
 function itineraryText() {
   if (!state.days.length) return "尚未建立行程。";
   return state.days
-    .map((day, index) => {
-      return `Day ${index + 1} ${day.date || "未定日期"} ${day.title}\n${day.plan}\n備註：${day.notes || "無"}`;
-    })
+    .map((day, index) => `Day ${index + 1} ${day.date || "未定日期"} ${day.title}\n${day.plan}\n備註：${day.notes || "無"}`)
     .join("\n\n");
 }
 
@@ -194,6 +195,37 @@ function budgetSummary() {
   const perPerson = total / travelers;
   const days = Math.max(1, state.days.length || 1);
   return { travelers, days, total, perPerson, perDay: total / days };
+}
+
+function chatPrompt(focus = "") {
+  const summary = budgetSummary();
+  return `請幫我優化這趟旅行行程，重點是動線效率、美食安排、穿搭拍照時間、交通備案與預算合理性。
+
+${focus ? `這次請特別聚焦：${focus}\n` : ""}請用以下格式回覆，方便我貼回旅行網頁：
+
+Day 1：當日主題
+上午 / ...
+下午 / ...
+晚上 / ...
+備註：...
+
+Day 2：當日主題
+上午 / ...
+下午 / ...
+晚上 / ...
+備註：...
+
+旅行名稱：${state.tripName}
+旅行人數：${summary.travelers}
+總預算：${currency(summary.total)}
+每人預算：${currency(summary.perPerson)}
+
+目前行程：
+${itineraryText()}`;
+}
+
+function chatLink(focus = "") {
+  return `https://chatgpt.com/?q=${encodeURIComponent(chatPrompt(focus))}`;
 }
 
 function renderBasics() {
@@ -230,6 +262,8 @@ function renderDays() {
         .join("")
     : `<li><span class="meta">還沒有行程。先用左側輸入一天完整安排。</span></li>`;
 
+  document.querySelector("#optimizePromptLink").href = chatLink();
+  document.querySelector("#panelOptimizeLink").href = chatLink();
 }
 
 function renderResources() {
@@ -244,7 +278,7 @@ function renderResources() {
             <p>${item.description}</p>
           </div>
           <div class="link-list">
-            <button class="text-button" type="button" data-action="resource-optimize" data-prompt="${escapeHtml(item.prompt)}">用目前行程優化</button>
+            <a href="${chatLink(item.prompt)}" target="_blank" rel="noopener noreferrer">用目前行程詢問 ChatGPT</a>
             ${item.links
               .map(([label, href]) => `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`)
               .join("")}
@@ -302,12 +336,35 @@ function renderExpenses() {
   document.querySelector("#expenseTotal").textContent = currency(total);
 }
 
+function renderFeedbackPreview() {
+  const list = document.querySelector("#feedbackPreviewList");
+  list.innerHTML = feedbackDraft
+    ? feedbackDraft
+        .map(
+          (day, index) => `
+            <li class="day-card">
+              <div>
+                <span class="pill">Draft ${index + 1}</span>
+                <strong>${escapeHtml(day.date || "未定日期")} · ${escapeHtml(day.title)}</strong>
+              </div>
+              <p class="day-plan">${nl2br(day.plan)}</p>
+              <span class="meta">${escapeHtml(day.notes || "尚無備註")}</span>
+            </li>
+          `,
+        )
+        .join("")
+    : "";
+  document.querySelector("#applyFeedback").disabled = !feedbackDraft;
+  document.querySelector("#undoFeedback").disabled = !state.undoDays;
+}
+
 function renderAll() {
   renderBasics();
   renderDays();
   renderResources();
   renderBudget();
   renderExpenses();
+  renderFeedbackPreview();
 }
 
 function resetDayForm() {
@@ -317,95 +374,118 @@ function resetDayForm() {
   document.querySelector("#cancelEditDay").classList.add("hidden");
 }
 
-function setOptimizeStatus(message, tone = "neutral") {
-  const status = document.querySelector("#optimizeStatus");
+function setFeedbackStatus(message, tone = "neutral") {
+  const status = document.querySelector("#feedbackStatus");
   status.textContent = message;
   status.className = `status-box ${tone}`;
 }
 
-function normalizeApiPayload(payload) {
-  const imported = normalizeState({
-    ...state,
-    ...payload,
-    days: payload.days,
-    expenses: state.expenses,
-  });
+function parseFeedbackText(rawText) {
+  const text = clean(rawText).replace(/\r\n/g, "\n");
+  if (!text) throw new Error("請先貼上 ChatGPT 優化後的行程。");
 
-  if (!imported.days.length) throw new Error("API 回傳需要至少一筆有效行程。");
-  return imported;
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const blocks = [];
+  let current = null;
+
+  for (const line of lines) {
+    const heading = parseDayHeading(line);
+    if (heading) {
+      if (current) blocks.push(current);
+      current = { title: heading.title || `第 ${heading.index} 天`, lines: [] };
+      continue;
+    }
+
+    if (!current) current = { title: "ChatGPT 優化行程", lines: [] };
+    current.lines.push(line);
+  }
+
+  if (current) blocks.push(current);
+  return normalizeDays(blocks.map(blockToDay));
 }
 
-function applyOptimizedState(optimized) {
-  state.tripName = optimized.tripName;
-  state.travelers = optimized.travelers;
-  state.budgetMode = optimized.budgetMode;
-  state.budgetAmount = optimized.budgetAmount;
-  state.days = optimized.days;
+function parseDayHeading(line) {
+  const normalized = line.replace(/^[-*#\s]+/, "");
+  const dayMatch = normalized.match(/^(?:day|d)\s*(\d+)\s*[:：.\-、]?\s*(.*)$/i);
+  if (dayMatch) return { index: Number(dayMatch[1]), title: clean(dayMatch[2]) };
+
+  const zhMatch = normalized.match(/^第\s*([一二三四五六七八九十\d]+)\s*天\s*[:：.\-、]?\s*(.*)$/);
+  if (zhMatch) return { index: zhNumber(zhMatch[1]), title: clean(zhMatch[2]) };
+
+  return null;
+}
+
+function zhNumber(value) {
+  if (/^\d+$/.test(value)) return Number(value);
+  const map = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
+  if (value === "十") return 10;
+  if (value.startsWith("十")) return 10 + (map[value[1]] || 0);
+  if (value.includes("十")) {
+    const [tens, ones] = value.split("十");
+    return (map[tens] || 1) * 10 + (map[ones] || 0);
+  }
+  return map[value] || 1;
+}
+
+function blockToDay(block) {
+  const date = findDate([block.title, ...block.lines].join(" "));
+  const notes = [];
+  const plan = [];
+  let title = block.title.replace(/^\d{4}-\d{2}-\d{2}\s*/, "").replace(/^[:：.\-、\s]+/, "");
+
+  for (const line of block.lines) {
+    if (/^(備註|note|notes|提醒|風險|備案)\s*[:：]/i.test(line)) {
+      notes.push(line.replace(/^(備註|note|notes|提醒|風險|備案)\s*[:：]\s*/i, ""));
+    } else {
+      plan.push(line);
+    }
+  }
+
+  if (!plan.length) plan.push(...block.lines);
+  if (!title || title === "ChatGPT 優化行程") title = plan[0]?.slice(0, 28) || "ChatGPT 優化行程";
+
+  return {
+    date,
+    title,
+    plan: plan.join("\n"),
+    notes: notes.join("\n"),
+  };
+}
+
+function findDate(value) {
+  const match = String(value || "").match(/\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : "";
+}
+
+function previewFeedback() {
+  try {
+    feedbackDraft = parseFeedbackText(document.querySelector("#feedbackText").value);
+    if (!feedbackDraft.length) throw new Error("無法辨識有效行程，請保留 Day 1 / Day 2 或第 1 天段落。");
+    setFeedbackStatus(`已轉成 ${feedbackDraft.length} 天行程草稿。請確認預覽後再套用。`, "success");
+  } catch (error) {
+    feedbackDraft = null;
+    setFeedbackStatus(error.message, "error");
+  }
+  renderFeedbackPreview();
+}
+
+function applyFeedback() {
+  if (!feedbackDraft) return;
+  state.undoDays = state.days.map((day) => ({ ...day }));
+  state.days = feedbackDraft.map((day) => ({ ...day }));
+  feedbackDraft = null;
   saveState();
+  setFeedbackStatus("已套用 ChatGPT 優化結果。若不滿意，可按復原上次套用。", "success");
   renderAll();
 }
 
-async function autoOptimize(focus = "") {
-  const buttons = document.querySelectorAll("#autoOptimize, #panelAutoOptimize, #heroAutoOptimize, [data-action='resource-optimize']");
-  buttons.forEach((button) => {
-    button.disabled = true;
-  });
-  setOptimizeStatus("正在透過 Cloudflare 呼叫 ChatGPT 優化行程...", "neutral");
-
-  try {
-    if (window.location.protocol === "file:") {
-      throw new Error("目前是直接開啟 index.html，Cloudflare Function 不會在這種模式下啟動。請部署到 Cloudflare Pages，或用 Wrangler Pages Dev 本機預覽。");
-    }
-
-    const response = await fetch("/api/optimize-itinerary", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tripName: state.tripName,
-        travelers: state.travelers,
-        budgetMode: state.budgetMode,
-        budgetAmount: state.budgetAmount,
-        days: state.days,
-        focus: clean(focus),
-      }),
-    });
-
-    if (!response.ok) throw new Error(await apiErrorMessage(response));
-    const payload = await response.json();
-    const optimized = normalizeApiPayload(payload);
-    applyOptimizedState(optimized);
-    setOptimizeStatus(`已完成並套用 ${optimized.days.length} 天優化行程。`, "success");
-  } catch (error) {
-    setOptimizeStatus(error.message, "error");
-  } finally {
-    document.querySelectorAll("#autoOptimize, #panelAutoOptimize, #heroAutoOptimize, [data-action='resource-optimize']").forEach((button) => {
-      button.disabled = false;
-    });
-  }
-}
-
-async function apiErrorMessage(response) {
-  let detail = "";
-  try {
-    const payload = await response.json();
-    detail = payload.error ? `原因：${payload.error}` : "";
-  } catch {
-    detail = "";
-  }
-
-  if (response.status === 404) {
-    return "找不到 /api/optimize-itinerary。請確認 Cloudflare Pages 已部署 functions/api/optimize-itinerary.js。";
-  }
-
-  if (response.status === 403) {
-    return `API 拒絕此來源。請確認 Cloudflare Pages 的 ALLOWED_ORIGIN 是否與目前網址一致。${detail}`;
-  }
-
-  if (response.status === 500) {
-    return `Cloudflare Function 已啟動，但伺服器設定不完整。請確認 OPENAI_API_KEY 已設為 Secret。${detail}`;
-  }
-
-  return `API 暫時無法使用，HTTP ${response.status}。${detail}`;
+function undoFeedback() {
+  if (!state.undoDays) return;
+  state.days = state.undoDays.map((day) => ({ ...day }));
+  state.undoDays = null;
+  saveState();
+  setFeedbackStatus("已復原到套用前的行程。", "success");
+  renderAll();
 }
 
 function bindEvents() {
@@ -490,17 +570,17 @@ function bindEvents() {
     renderExpenses();
   });
 
-  document.querySelector("#autoOptimize").addEventListener("click", () => autoOptimize());
-  document.querySelector("#panelAutoOptimize").addEventListener("click", () => autoOptimize());
-  document.querySelector("#heroAutoOptimize").addEventListener("click", () => autoOptimize());
-
-  document.querySelector("#resourceGrid").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-action='resource-optimize']");
-    if (!button) return;
-    autoOptimize(button.dataset.prompt || "");
+  document.querySelector("#previewFeedback").addEventListener("click", previewFeedback);
+  document.querySelector("#applyFeedback").addEventListener("click", applyFeedback);
+  document.querySelector("#undoFeedback").addEventListener("click", undoFeedback);
+  document.querySelector("#feedbackText").addEventListener("input", () => {
+    feedbackDraft = null;
+    setFeedbackStatus("內容已變更，請重新轉成行程草稿。");
+    renderFeedbackPreview();
   });
 
   document.querySelector("#clearDays").addEventListener("click", () => {
+    state.undoDays = state.days.map((day) => ({ ...day }));
     state.days = [];
     saveState();
     resetDayForm();

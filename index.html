@@ -9,7 +9,7 @@
     />
     <meta
       name="description"
-      content="Sumi 的專屬旅行規劃頁，整合彈性行程、Cloudflare + ChatGPT 一鍵優化、動態資訊、預算規劃與旅伴分帳。"
+      content="Sumi 的專屬旅行規劃頁，整合彈性行程、ChatGPT 手動回饋、動態資訊、預算規劃與旅伴分帳。"
     />
     <title>Sumi Travel Desk</title>
     <link rel="stylesheet" href="./styles.css" />
@@ -23,6 +23,7 @@
         </a>
         <div class="nav-links">
           <a href="#itinerary">行程</a>
+          <a href="#feedback">ChatGPT 回饋</a>
           <a href="#resources">動態資訊</a>
           <a href="#budget">預算</a>
           <a href="#split">分帳</a>
@@ -32,13 +33,13 @@
       <section id="overview" class="hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">Travel workspace for Sumi Lin</p>
-          <h1>以每日行程為核心，讓 AI 優化結果可以回到你的旅行表。</h1>
+          <h1>把每日行程交給 ChatGPT 優化，再手動回饋到你的旅行表。</h1>
           <p>
-            先排每天想怎麼玩，再由 Cloudflare 安全呼叫 ChatGPT 優化，完成後直接套用到目前行程。
+            不使用 API、不需要額外付費。你可以把目前行程帶到 ChatGPT，取得優化建議後貼回網站，先預覽再套用，避免行程意外消失。
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#itinerary">編輯行程</a>
-            <button id="heroAutoOptimize" class="button secondary" type="button">一鍵優化</button>
+            <a class="button secondary" href="#feedback">貼回優化結果</a>
           </div>
         </div>
         <div class="travel-board" aria-label="旅行規劃視覺摘要">
@@ -81,7 +82,7 @@
         <div>
           <div class="section-heading">
             <p class="eyebrow">Flexible itinerary</p>
-            <h2>用「一天」來規劃，也能把 AI 結果套回來</h2>
+            <h2>用「一天」來規劃，保留可編輯的彈性</h2>
           </div>
           <form id="dayForm" class="tool-panel">
             <label>
@@ -117,19 +118,36 @@
             </div>
           </form>
 
-          <section class="tool-panel import-panel" aria-label="Cloudflare AI 優化">
+          <section id="feedback" class="tool-panel import-panel" aria-label="ChatGPT 手動回饋">
             <div class="panel-title">
               <div>
-                <p class="eyebrow">Feedback loop</p>
-                <h3>Cloudflare 連動 ChatGPT</h3>
+                <p class="eyebrow">Manual feedback</p>
+                <h3>貼回 ChatGPT 優化後的行程</h3>
               </div>
-              <span class="pill">API</span>
+              <span class="pill">No API</span>
             </div>
             <p class="meta">
-              由 Cloudflare Pages Function 呼叫 OpenAI，優化完成後直接更新下方行程。API key 只放在 Cloudflare Secret，不會進入前端。
+              先用下方連結把目前資料帶到 ChatGPT。優化後把文字貼回來，網站會嘗試辨識 Day 1、Day 2 或「第 1 天」段落；如果格式不明，會保留成一筆完整草稿，不會清空行程。
             </p>
-            <button id="autoOptimize" class="button primary wide" type="button">一鍵優化並套用</button>
-            <div id="optimizeStatus" class="status-box" role="status">等待送出目前行程。</div>
+            <a id="optimizePromptLink" class="button secondary wide" href="#" target="_blank" rel="noopener noreferrer">
+              用 ChatGPT 優化目前行程
+            </a>
+            <label>
+              <span>ChatGPT 優化結果</span>
+              <textarea
+                id="feedbackText"
+                rows="10"
+                maxlength="6000"
+                placeholder="建議格式：&#10;Day 1：抵達與散步&#10;上午 / 抵達機場...&#10;下午 / 入住...&#10;備註：保留交通彈性&#10;&#10;Day 2：選品店與美食&#10;上午 / ..."
+              ></textarea>
+            </label>
+            <div class="form-actions">
+              <button id="previewFeedback" class="button secondary" type="button">轉成行程草稿</button>
+              <button id="applyFeedback" class="button primary" type="button" disabled>套用草稿</button>
+              <button id="undoFeedback" class="button secondary" type="button" disabled>復原上次套用</button>
+            </div>
+            <div id="feedbackStatus" class="status-box" role="status">等待貼上 ChatGPT 優化結果。</div>
+            <ol id="feedbackPreviewList" class="timeline"></ol>
           </section>
         </div>
 
@@ -141,7 +159,9 @@
             </button>
           </div>
           <ol id="dayList" class="timeline"></ol>
-          <button id="panelAutoOptimize" class="button secondary wide" type="button">用 Cloudflare + ChatGPT 優化</button>
+          <a id="panelOptimizeLink" class="button secondary wide" href="#" target="_blank" rel="noopener noreferrer">
+            用 ChatGPT 重新優化
+          </a>
         </div>
       </section>
 
@@ -240,7 +260,7 @@
 
     <footer class="app-shell footer">
       <span>Security first: no cookies, no trackers, no API keys in the browser.</span>
-      <span>Built for Cloudflare Pages.</span>
+      <span>Built as a static site for Cloudflare.</span>
     </footer>
 
     <script src="./app.js"></script>
