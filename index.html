@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';"
+    />
+    <meta
+      name="description"
+      content="Sumi 的專屬旅行規劃頁，整合彈性行程、動態資訊、預算規劃與旅伴分帳。"
+    />
+    <title>Sumi Travel Desk</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-shell hero">
+      <nav class="topbar" aria-label="主要導覽">
+        <a class="brand" href="#overview" aria-label="回到總覽">
+          <span class="brand-mark" aria-hidden="true">ST</span>
+          <span>Sumi Travel Desk</span>
+        </a>
+        <div class="nav-links">
+          <a href="#itinerary">行程</a>
+          <a href="#resources">動態資訊</a>
+          <a href="#budget">預算</a>
+          <a href="#split">分帳</a>
+        </div>
+      </nav>
+
+      <section id="overview" class="hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Travel workspace for Sumi Lin</p>
+          <h1>以每日行程為核心，動態調整交通、住宿、美食與預算。</h1>
+          <p>
+            先排每天想怎麼玩，再用行程內容產生 ChatGPT 優化連結與 OTA 查詢入口。所有資料先存在你的瀏覽器，不放 API key，不送到未授權後端。
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#itinerary">編輯行程</a>
+            <a class="button secondary" href="#resources">優化資訊</a>
+          </div>
+        </div>
+        <div class="travel-board" aria-label="旅行規劃視覺摘要">
+          <div class="route-map" aria-hidden="true">
+            <span class="pin home"></span>
+            <span class="pin stay"></span>
+            <span class="pin food"></span>
+            <span class="route-line one"></span>
+            <span class="route-line two"></span>
+          </div>
+          <div class="board-panel">
+            <span>Trip</span>
+            <strong id="tripNamePreview">Tokyo fit & food run</strong>
+          </div>
+          <div class="board-panel compact">
+            <span>Budget</span>
+            <strong id="budgetPreview">TWD 45,000</strong>
+          </div>
+        </div>
+      </section>
+    </header>
+
+    <main class="app-shell">
+      <section class="control-strip" aria-label="旅行基本資料">
+        <label>
+          <span>旅行名稱</span>
+          <input id="tripName" type="text" maxlength="60" value="Tokyo fit & food run" />
+        </label>
+        <label>
+          <span>旅行人數</span>
+          <input id="travelers" type="number" min="1" max="20" step="1" value="2" />
+        </label>
+        <label>
+          <span>出發日期</span>
+          <input id="startDate" type="date" />
+        </label>
+      </section>
+
+      <section id="itinerary" class="section-block two-column itinerary-layout">
+        <div>
+          <div class="section-heading">
+            <p class="eyebrow">Flexible itinerary</p>
+            <h2>用「一天」來規劃，而不是一格一格填</h2>
+          </div>
+          <form id="dayForm" class="tool-panel">
+            <label>
+              <span>日期</span>
+              <input id="dayDate" type="date" required />
+            </label>
+            <label>
+              <span>當日主題</span>
+              <input id="dayTitle" type="text" maxlength="60" placeholder="抵達日、逛街拍照日、美食日" required />
+            </label>
+            <label>
+              <span>整天行程</span>
+              <textarea
+                id="dayPlan"
+                rows="8"
+                maxlength="1200"
+                placeholder="09:00 早餐與出發&#10;11:00 選品店 / 展覽&#10;13:00 午餐&#10;15:00 咖啡與街拍&#10;19:00 晚餐"
+                required
+              ></textarea>
+            </label>
+            <label>
+              <span>備註</span>
+              <textarea
+                id="dayNotes"
+                rows="3"
+                maxlength="500"
+                placeholder="交通備案、訂位提醒、穿搭或天氣注意事項"
+              ></textarea>
+            </label>
+            <div class="form-actions">
+              <button id="saveDayButton" class="button primary" type="submit">新增這一天</button>
+              <button id="cancelEditDay" class="button secondary hidden" type="button">取消編輯</button>
+            </div>
+          </form>
+        </div>
+        <div class="tool-panel result-panel itinerary-panel">
+          <div class="panel-title">
+            <h3>目前行程</h3>
+            <button id="clearDays" class="icon-button" type="button" aria-label="清除全部行程" title="清除全部行程">
+              ×
+            </button>
+          </div>
+          <ol id="dayList" class="timeline"></ol>
+          <a id="chatPromptLink" class="button secondary wide" href="#" target="_blank" rel="noopener noreferrer">
+            用 ChatGPT 重新優化全部行程
+          </a>
+        </div>
+      </section>
+
+      <section id="resources" class="section-block">
+        <div class="section-heading">
+          <p class="eyebrow">Itinerary-aware links</p>
+          <h2>根據目前行程優化機票、住宿、飲食、交通</h2>
+        </div>
+        <div class="resource-grid" id="resourceGrid"></div>
+      </section>
+
+      <section id="budget" class="section-block two-column">
+        <div>
+          <div class="section-heading">
+            <p class="eyebrow">Budget planner</p>
+            <h2>用旅行人數與單人/總預算規劃</h2>
+          </div>
+          <form id="budgetForm" class="tool-panel">
+            <label>
+              <span>預算模式</span>
+              <select id="budgetMode">
+                <option value="total">總預算</option>
+                <option value="perPerson">單人預算</option>
+              </select>
+            </label>
+            <label>
+              <span>預算金額 TWD</span>
+              <input id="budgetAmount" type="number" min="0" step="1000" value="45000" />
+            </label>
+          </form>
+        </div>
+        <div class="tool-panel result-panel budget-panel">
+          <div class="panel-title">
+            <h3>預算摘要</h3>
+            <span id="budgetDays" class="pill">0 天</span>
+          </div>
+          <div class="budget-metrics">
+            <div>
+              <span>總預算</span>
+              <strong id="budgetTotal">TWD 0</strong>
+            </div>
+            <div>
+              <span>每人預算</span>
+              <strong id="budgetPerPerson">TWD 0</strong>
+            </div>
+            <div>
+              <span>每日總額</span>
+              <strong id="budgetPerDay">TWD 0</strong>
+            </div>
+          </div>
+          <ul id="budgetBreakdown" class="stack-list"></ul>
+        </div>
+      </section>
+
+      <section id="split" class="section-block two-column">
+        <div>
+          <div class="section-heading">
+            <p class="eyebrow">Shared expense</p>
+            <h2>旅伴記帳與分帳</h2>
+          </div>
+          <form id="expenseForm" class="tool-panel">
+            <label>
+              <span>項目</span>
+              <input id="expenseTitle" type="text" maxlength="40" placeholder="晚餐、車票、住宿訂金" required />
+            </label>
+            <label>
+              <span>付款人</span>
+              <input id="expensePayer" type="text" maxlength="24" placeholder="Sumi" required />
+            </label>
+            <label>
+              <span>金額 TWD</span>
+              <input id="expenseAmount" type="number" min="1" step="1" placeholder="1200" required />
+            </label>
+            <label>
+              <span>分帳人數</span>
+              <input id="expensePeople" type="number" min="1" max="20" step="1" value="2" required />
+            </label>
+            <button class="button primary" type="submit">新增紀錄</button>
+          </form>
+        </div>
+        <div class="tool-panel result-panel">
+          <div class="panel-title">
+            <h3>分帳紀錄</h3>
+            <button id="clearExpenses" class="icon-button" type="button" aria-label="清除分帳紀錄" title="清除紀錄">
+              ×
+            </button>
+          </div>
+          <ul id="expenseList" class="stack-list"></ul>
+          <div class="total-row">
+            <span>目前總支出</span>
+            <strong id="expenseTotal">TWD 0</strong>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-shell footer">
+      <span>Security first: no cookies, no trackers, no API keys in the browser.</span>
+      <span>Built for Cloudflare Pages.</span>
+    </footer>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
