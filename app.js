@@ -3,44 +3,44 @@ const previousStorageKeys = ["sumi-travel-desk-v3", "sumi-travel-desk-v2", "sumi
 
 const resources = [
   {
+    key: "flight",
     title: "機票",
     icon: "AIR",
     tone: "flight",
     description: "用目前行程判斷抵達/離開時間、行李限制、轉機風險與航班價格。",
-    prompt: "請根據我的旅行行程，建議機票搜尋策略、理想抵達離開時間、轉機與行李風險。",
     links: [
       ["Google Flights", "https://www.google.com/travel/flights"],
       ["Skyscanner", "https://www.skyscanner.com.tw/"],
     ],
   },
   {
+    key: "stay",
     title: "住宿",
     icon: "BED",
     tone: "stay",
     description: "依每日活動範圍挑住宿區域，檢查交通時間、取消政策與稅費。",
-    prompt: "請根據我的每日行程，建議最適合住宿區域、房型條件、交通動線與取消政策注意事項。",
     links: [
       ["Booking", "https://www.booking.com/"],
       ["Agoda", "https://www.agoda.com/"],
     ],
   },
   {
+    key: "food",
     title: "飲食",
     icon: "EAT",
     tone: "food",
     description: "根據每天所在區域安排餐廳、咖啡、訂位與排隊備案。",
-    prompt: "請根據我的每日行程，優化餐廳與咖啡安排，包含訂位、排隊風險、預算與備案。",
     links: [
       ["Google Maps", "https://www.google.com/maps"],
       ["Tabelog", "https://tabelog.com/"],
     ],
   },
   {
+    key: "transit",
     title: "交通",
     icon: "GO",
     tone: "transit",
     description: "用行程順序檢查交通票券、轉乘時間、尖峰風險與雨天方案。",
-    prompt: "請根據我的每日行程，優化交通路線、票券選擇、轉乘時間、尖峰風險與備案。",
     links: [
       ["Rome2Rio", "https://www.rome2rio.com/"],
       ["Google Maps", "https://www.google.com/maps"],
@@ -224,6 +224,67 @@ Day 2：當日主題
 ${itineraryText()}`;
 }
 
+function resourcePrompt(resource) {
+  const summary = budgetSummary();
+  const shared = `旅行名稱：${state.tripName}
+旅行人數：${summary.travelers}
+總預算：${currency(summary.total)}
+每人預算：${currency(summary.perPerson)}
+目前行程摘要：
+${compactItineraryText()}`;
+
+  const prompts = {
+    flight: `請只針對「機票」協助我規劃，不要重排行程。
+
+請輸出：
+1. 建議抵達與離開時間帶
+2. 搜尋機票時要注意的轉機、行李、退改規則
+3. 哪幾天行程不適合太早或太晚航班
+4. Google Flights / Skyscanner 搜尋關鍵條件
+
+${shared}`,
+    stay: `請只針對「住宿」協助我規劃，不要重排行程。
+
+請輸出：
+1. 建議住宿區域排序
+2. 每個區域的優缺點與適合天數
+3. 交通時間與晚歸安全性注意
+4. Booking / Agoda 篩選條件，例如取消政策、房型、交通距離
+
+${shared}`,
+    food: `請只針對「飲食」協助我規劃，不要重排行程。
+
+請輸出：
+1. 每一天適合安排早餐、午餐、咖啡、晚餐的區域
+2. 需要訂位或容易排隊的時段
+3. 預算分配與備案餐廳類型
+4. Google Maps / Tabelog 搜尋關鍵字
+
+${shared}`,
+    transit: `請只針對「交通」協助我規劃，不要重排行程。
+
+請輸出：
+1. 每天主要移動路線與可能轉乘
+2. 建議交通票券或 IC 卡使用策略
+3. 尖峰時間、雨天、行李移動風險
+4. Google Maps / Rome2Rio 查詢時要確認的項目
+
+${shared}`,
+  };
+
+  return prompts[resource.key] || chatPrompt();
+}
+
+function compactItineraryText() {
+  if (!state.days.length) return "尚未建立行程。";
+  return state.days
+    .map((day, index) => {
+      const lines = clean(day.plan).split("\n").filter(Boolean).slice(0, 4).join("\n");
+      return `Day ${index + 1} ${day.date || "未定日期"} ${day.title}\n${lines}${day.notes ? `\n備註：${day.notes}` : ""}`;
+    })
+    .join("\n\n");
+}
+
 function renderBasics() {
   document.querySelector("#tripName").value = state.tripName;
   document.querySelector("#travelers").value = state.travelers;
@@ -277,7 +338,7 @@ function renderResources() {
             <p>${item.description}</p>
           </div>
           <div class="link-list">
-            <button class="text-button" type="button" data-action="copy-resource-prompt" data-prompt="${escapeHtml(item.prompt)}">
+            <button class="text-button" type="button" data-action="copy-resource-prompt" data-resource-key="${item.key}">
               產生提問並開啟 ChatGPT
             </button>
             ${item.links
@@ -393,7 +454,7 @@ function setFeedbackStatus(message, tone = "neutral") {
 }
 
 function preparePrompt(focus = "") {
-  const prompt = chatPrompt(focus);
+  const prompt = focus && typeof focus === "object" ? resourcePrompt(focus) : chatPrompt(focus);
   document.querySelector("#promptText").value = prompt;
   setFeedbackStatus("已產生提問內容。請複製後貼到 ChatGPT，再把優化結果貼回下方。", "success");
   return prompt;
@@ -621,7 +682,8 @@ function bindEvents() {
   document.querySelector("#resourceGrid").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-action='copy-resource-prompt']");
     if (!button) return;
-    openChatGPTWithPrompt(button.dataset.prompt || "");
+    const resource = resources.find((item) => item.key === button.dataset.resourceKey);
+    openChatGPTWithPrompt(resource || "");
   });
 
   document.querySelector("#clearDays").addEventListener("click", () => {
