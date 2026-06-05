@@ -549,12 +549,13 @@ function currentPromptText() {
 }
 
 async function openChatGPT() {
-  if (!currentPromptText()) {
+  const prompt = currentPromptText();
+  if (!prompt) {
     setFeedbackStatus("請先產生並複製提問內容，再開啟 ChatGPT。", "error");
     return;
   }
-  setFeedbackStatus("ChatGPT 已開啟。請貼上你剛剛複製的提問內容。", "success");
-  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+  setFeedbackStatus("ChatGPT 已開啟，並會使用目前提問欄位中的內容。", "success");
+  window.open(`https://chatgpt.com/?q=${encodeURIComponent(prompt)}`, "_blank", "noopener,noreferrer");
 }
 
 function parseFeedbackText(rawText) {
