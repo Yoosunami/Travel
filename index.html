@@ -5,12 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'none'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; connect-src 'self';"
     />
-    <meta
-      name="description"
-      content="Sumi 的專屬旅行規劃頁，整合彈性行程、ChatGPT 手動回饋、動態資訊、預算規劃與旅伴分帳。"
-    />
+    <meta name="description" content="Sumi 的專屬旅行規劃頁，支援行程、預算、分帳與跨裝置同步。" />
     <title>Sumi Travel Desk</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -22,9 +19,10 @@
           <span>Sumi Travel Desk</span>
         </a>
         <div class="nav-links">
+          <a href="#sync">同步</a>
           <a href="#itinerary">行程</a>
-          <a href="#feedback">ChatGPT 回饋</a>
-          <a href="#resources">動態資訊</a>
+          <a href="#feedback">ChatGPT</a>
+          <a href="#resources">資訊</a>
           <a href="#budget">預算</a>
           <a href="#split">分帳</a>
         </div>
@@ -33,13 +31,13 @@
       <section id="overview" class="hero-grid">
         <div class="hero-copy">
           <p class="eyebrow">Travel workspace for Sumi Lin</p>
-          <h1>把每日行程交給 ChatGPT 優化，再手動回饋到你的旅行表。</h1>
+          <h1>把行程、預算、分帳同步到手機與電腦。</h1>
           <p>
-            不使用 API、不需要額外付費。你可以把目前行程帶到 ChatGPT，取得優化建議後貼回網站，先預覽再套用，避免行程意外消失。
+            以每日行程為核心，保留 ChatGPT 手動優化流程；部署到 Cloudflare 後，可用 D1 把資料同步到不同裝置。
           </p>
           <div class="hero-actions">
             <a class="button primary" href="#itinerary">編輯行程</a>
-            <a class="button secondary" href="#feedback">貼回優化結果</a>
+            <a class="button secondary" href="#sync">同步資料</a>
           </div>
         </div>
         <div class="travel-board" aria-label="旅行規劃視覺摘要">
@@ -78,11 +76,48 @@
         </label>
       </section>
 
+      <section id="sync" class="section-block two-column">
+        <div>
+          <div class="section-heading">
+            <p class="eyebrow">Cloud sync</p>
+            <h2>手機與電腦共用同一份旅行資料</h2>
+          </div>
+          <form id="syncForm" class="tool-panel">
+            <label>
+              <span>同步密碼</span>
+              <input id="syncToken" type="password" autocomplete="current-password" placeholder="與 Cloudflare Secret 相同" />
+            </label>
+            <div class="form-actions">
+              <button id="saveSyncToken" class="button secondary" type="button">儲存密碼</button>
+              <button id="pullCloud" class="button secondary" type="button">從雲端下載</button>
+              <button id="pushCloud" class="button primary" type="button">上傳到雲端</button>
+            </div>
+            <div id="syncStatus" class="status-box" role="status">尚未同步。</div>
+          </form>
+        </div>
+        <div class="tool-panel result-panel budget-panel">
+          <div class="panel-title">
+            <h3>同步狀態</h3>
+            <span id="syncMode" class="pill">Local</span>
+          </div>
+          <ul class="stack-list">
+            <li>
+              <strong>本機更新</strong>
+              <span id="localUpdatedAt" class="meta">尚未更新</span>
+            </li>
+            <li>
+              <strong>雲端更新</strong>
+              <span id="cloudUpdatedAt" class="meta">尚未同步</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <section id="itinerary" class="section-block two-column itinerary-layout">
         <div>
           <div class="section-heading">
             <p class="eyebrow">Flexible itinerary</p>
-            <h2>用「一天」來規劃，保留可編輯的彈性</h2>
+            <h2>用「一天」來規劃，保留可編輯彈性</h2>
           </div>
           <form id="dayForm" class="tool-panel">
             <label>
@@ -95,22 +130,11 @@
             </label>
             <label>
               <span>整天行程</span>
-              <textarea
-                id="dayPlan"
-                rows="8"
-                maxlength="1200"
-                placeholder="09:00 早餐與出發&#10;11:00 選品店 / 展覽&#10;13:00 午餐&#10;15:00 咖啡與街拍&#10;19:00 晚餐"
-                required
-              ></textarea>
+              <textarea id="dayPlan" rows="8" maxlength="1200" placeholder="09:00 早餐與出發&#10;11:00 選品店 / 展覽&#10;13:00 午餐&#10;15:00 咖啡與街拍&#10;19:00 晚餐" required></textarea>
             </label>
             <label>
               <span>備註</span>
-              <textarea
-                id="dayNotes"
-                rows="3"
-                maxlength="500"
-                placeholder="交通備案、訂位提醒、穿搭或天氣注意事項"
-              ></textarea>
+              <textarea id="dayNotes" rows="3" maxlength="500" placeholder="交通備案、訂位提醒、穿搭或天氣注意事項"></textarea>
             </label>
             <div class="form-actions">
               <button id="saveDayButton" class="button primary" type="submit">新增這一天</button>
@@ -126,18 +150,10 @@
               </div>
               <span class="pill">No API</span>
             </div>
-            <p class="meta">
-              先用下方連結把目前資料帶到 ChatGPT。優化後把文字貼回來，網站會嘗試辨識 Day 1、Day 2 或「第 1 天」段落；如果格式不明，會保留成一筆完整草稿，不會清空行程。
-            </p>
-            <button id="preparePrompt" class="button secondary wide" type="button">產生 ChatGPT 提問內容</button>
+            <button id="preparePrompt" class="button secondary wide" type="button">產生完整行程提問</button>
             <label>
               <span>要貼到 ChatGPT 的提問</span>
-              <textarea
-                id="promptText"
-                rows="8"
-                readonly
-                placeholder="按「產生 ChatGPT 提問內容」後，這裡會出現整理好的行程與要求。"
-              ></textarea>
+              <textarea id="promptText" rows="8" readonly placeholder="按「產生提問」後，這裡會出現整理好的內容。"></textarea>
             </label>
             <div class="form-actions">
               <button id="copyPrompt" class="button secondary" type="button">複製提問</button>
@@ -145,12 +161,7 @@
             </div>
             <label>
               <span>ChatGPT 優化結果</span>
-              <textarea
-                id="feedbackText"
-                rows="10"
-                maxlength="6000"
-                placeholder="建議格式：&#10;Day 1：抵達與散步&#10;上午 / 抵達機場...&#10;下午 / 入住...&#10;備註：保留交通彈性&#10;&#10;Day 2：選品店與美食&#10;上午 / ..."
-              ></textarea>
+              <textarea id="feedbackText" rows="10" maxlength="6000" placeholder="Day 1：抵達與散步&#10;上午 / 抵達機場...&#10;下午 / 入住...&#10;備註：保留交通彈性"></textarea>
             </label>
             <div class="form-actions">
               <button id="previewFeedback" class="button secondary" type="button">轉成行程草稿</button>
@@ -165,14 +176,10 @@
         <div class="tool-panel result-panel itinerary-panel">
           <div class="panel-title">
             <h3>目前行程</h3>
-            <button id="clearDays" class="icon-button" type="button" aria-label="清除全部行程" title="清除全部行程">
-              ×
-            </button>
+            <button id="clearDays" class="icon-button" type="button" aria-label="清除全部行程" title="清除全部行程">×</button>
           </div>
           <ol id="dayList" class="timeline"></ol>
-          <button id="panelOptimizeLink" class="button secondary wide" type="button">
-            產生完整行程提問
-          </button>
+          <button id="panelOptimizeLink" class="button secondary wide" type="button">產生完整行程提問</button>
         </div>
       </section>
 
@@ -210,18 +217,9 @@
             <span id="budgetDays" class="pill">0 天</span>
           </div>
           <div class="budget-metrics">
-            <div>
-              <span>總預算</span>
-              <strong id="budgetTotal">TWD 0</strong>
-            </div>
-            <div>
-              <span>每人預算</span>
-              <strong id="budgetPerPerson">TWD 0</strong>
-            </div>
-            <div>
-              <span>每日總額</span>
-              <strong id="budgetPerDay">TWD 0</strong>
-            </div>
+            <div><span>總預算</span><strong id="budgetTotal">TWD 0</strong></div>
+            <div><span>每人預算</span><strong id="budgetPerPerson">TWD 0</strong></div>
+            <div><span>每日總額</span><strong id="budgetPerDay">TWD 0</strong></div>
           </div>
           <ul id="budgetBreakdown" class="stack-list"></ul>
         </div>
@@ -234,46 +232,29 @@
             <h2>旅伴記帳與分帳</h2>
           </div>
           <form id="expenseForm" class="tool-panel">
-            <label>
-              <span>項目</span>
-              <input id="expenseTitle" type="text" maxlength="40" placeholder="晚餐、車票、住宿訂金" required />
-            </label>
-            <label>
-              <span>付款人</span>
-              <input id="expensePayer" type="text" maxlength="24" placeholder="Sumi" required />
-            </label>
-            <label>
-              <span>金額 TWD</span>
-              <input id="expenseAmount" type="number" min="1" step="1" placeholder="1200" required />
-            </label>
-            <label>
-              <span>分帳人數</span>
-              <input id="expensePeople" type="number" min="1" max="20" step="1" value="2" required />
-            </label>
+            <label><span>項目</span><input id="expenseTitle" type="text" maxlength="40" placeholder="晚餐、車票、住宿訂金" required /></label>
+            <label><span>付款人</span><input id="expensePayer" type="text" maxlength="24" placeholder="Sumi" required /></label>
+            <label><span>金額 TWD</span><input id="expenseAmount" type="number" min="1" step="1" placeholder="1200" required /></label>
+            <label><span>分帳人數</span><input id="expensePeople" type="number" min="1" max="20" step="1" value="2" required /></label>
             <button class="button primary" type="submit">新增紀錄</button>
           </form>
         </div>
         <div class="tool-panel result-panel">
           <div class="panel-title">
             <h3>分帳紀錄</h3>
-            <button id="clearExpenses" class="icon-button" type="button" aria-label="清除分帳紀錄" title="清除紀錄">
-              ×
-            </button>
+            <button id="clearExpenses" class="icon-button" type="button" aria-label="清除分帳紀錄" title="清除紀錄">×</button>
           </div>
           <ul id="expenseList" class="stack-list"></ul>
-          <div class="total-row">
-            <span>目前總支出</span>
-            <strong id="expenseTotal">TWD 0</strong>
-          </div>
+          <div class="total-row"><span>目前總支出</span><strong id="expenseTotal">TWD 0</strong></div>
         </div>
       </section>
     </main>
 
     <footer class="app-shell footer">
       <span>Security first: no cookies, no trackers, no API keys in the browser.</span>
-      <span>Built as a static site for Cloudflare.</span>
+      <span>Built for Cloudflare Workers + D1.</span>
     </footer>
 
-    <script src="./app.js?v=20260605-plain-chatgpt"></script>
+    <script src="./app.js?v=20260608-sync"></script>
   </body>
 </html>

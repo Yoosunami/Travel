@@ -1,0 +1,18 @@
+{
+  "name": "travel",
+  "main": "worker.js",
+  "compatibility_date": "2026-06-08",
+  "assets": {
+    "directory": "."
+  },
+  "d1_databases": [
+    {
+      "binding": "TRAVEL_DB",
+      "database_name": "travel-db",
+      "database_id": "009a8a54-ceb7-4869-8b9b-13f69360b7b9"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
