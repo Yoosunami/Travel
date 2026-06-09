@@ -9,7 +9,7 @@
     {
       "binding": "TRAVEL_DB",
       "database_name": "travel-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "009a8a54-ceb7-4869-8b9b-13f69360b7b9"
     }
   ],
   "observability": {
