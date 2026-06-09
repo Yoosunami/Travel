@@ -1,4 +1,4 @@
-const storageKey = "sumi-travel-desk-v5";
+const storageKey = "sumi-travel-desk-v6";
 const syncTokenKey = "sumi-travel-sync-token";
 const previousStorageKeys = ["sumi-travel-desk-v4", "sumi-travel-desk-v3", "sumi-travel-desk-v2", "sumi-travel-desk-v1"];
 
@@ -85,13 +85,14 @@ const defaultState = {
 
 let editingDayIndex = null;
 let feedbackDraft = null;
-const state = loadState();
+let appState = loadAppState();
+let state = activeTrip();
 const formatter = new Intl.NumberFormat("zh-TW");
 
-function loadState() {
+function loadAppState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(storageKey));
-    if (parsed) return normalizeState(parsed);
+    if (parsed) return normalizeAppState(parsed);
   } catch {
     // Ignore invalid state.
   }
@@ -99,13 +100,74 @@ function loadState() {
   for (const key of previousStorageKeys) {
     try {
       const parsed = JSON.parse(localStorage.getItem(key));
-      if (parsed) return normalizeState(migrateOldState(parsed));
+      if (parsed) return singleTripToAppState(normalizeState(migrateOldState(parsed)));
     } catch {
       // Ignore invalid legacy state.
     }
   }
 
-  return normalizeState(defaultState);
+  return singleTripToAppState(normalizeState(defaultState));
+}
+
+function normalizeAppState(value) {
+  if (!Array.isArray(value.trips)) return singleTripToAppState(normalizeState(value));
+
+  const trips = value.trips.map(normalizeTrip).filter(Boolean);
+  const fallback = singleTripToAppState(normalizeState(defaultState));
+  if (!trips.length) return fallback;
+
+  const activeTripId = trips.some((trip) => trip.id === value.activeTripId) ? value.activeTripId : trips[0].id;
+  return {
+    activeTripId,
+    trips,
+    localUpdatedAt: value.localUpdatedAt || new Date().toISOString(),
+    cloudUpdatedAt: value.cloudUpdatedAt || "",
+  };
+}
+
+function singleTripToAppState(trip) {
+  const normalized = normalizeTrip({ id: createId(), ...trip });
+  return {
+    activeTripId: normalized.id,
+    trips: [normalized],
+    localUpdatedAt: trip.localUpdatedAt || new Date().toISOString(),
+    cloudUpdatedAt: trip.cloudUpdatedAt || "",
+  };
+}
+
+function normalizeTrip(value) {
+  if (!value) return null;
+  return {
+    id: clean(value.id) || createId(),
+    tripName: clean(value.tripName).slice(0, 60) || "未命名旅行",
+    startDate: validDate(value.startDate) ? value.startDate : "",
+    travelers: clampNumber(value.travelers, 1, 20, defaultState.travelers),
+    budgetMode: value.budgetMode === "perPerson" ? "perPerson" : "total",
+    budgetAmount: clampNumber(value.budgetAmount, 0, 99999999, defaultState.budgetAmount),
+    days: normalizeDays(value.days),
+    expenses: Array.isArray(value.expenses) ? value.expenses.slice(0, 500) : [],
+    undoDays: Array.isArray(value.undoDays) ? normalizeDays(value.undoDays) : null,
+  };
+}
+
+function activeTrip() {
+  return appState.trips.find((trip) => trip.id === appState.activeTripId) || appState.trips[0];
+}
+
+function setActiveTrip(id) {
+  if (!appState.trips.some((trip) => trip.id === id)) return;
+  appState.activeTripId = id;
+  state = activeTrip();
+  editingDayIndex = null;
+  feedbackDraft = null;
+  saveState({ keepTimestamp: true });
+  resetDayForm();
+  renderAll();
+}
+
+function createId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `trip-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function migrateOldState(oldState) {
@@ -150,28 +212,74 @@ function normalizeDays(days) {
 }
 
 function saveState(options = {}) {
-  if (!options.keepTimestamp) state.localUpdatedAt = new Date().toISOString();
-  localStorage.setItem(storageKey, JSON.stringify(state));
+  appState.trips = appState.trips.map((trip) => (trip.id === state.id ? state : trip));
+  if (!options.keepTimestamp) appState.localUpdatedAt = new Date().toISOString();
+  localStorage.setItem(storageKey, JSON.stringify(appState));
   renderSyncStatus();
 }
 
 function cloudPayload() {
   return {
-    tripName: state.tripName,
-    startDate: state.startDate,
-    travelers: state.travelers,
-    budgetMode: state.budgetMode,
-    budgetAmount: state.budgetAmount,
-    expenses: state.expenses,
-    days: state.days,
-    localUpdatedAt: state.localUpdatedAt,
+    version: 2,
+    activeTripId: appState.activeTripId,
+    trips: appState.trips,
+    localUpdatedAt: appState.localUpdatedAt,
   };
 }
 
 function applyCloudPayload(payload, updatedAt) {
-  const next = normalizeState({ ...state, ...payload, cloudUpdatedAt: updatedAt || payload.updatedAt || "" });
-  Object.assign(state, next);
+  const next = normalizeAppState({ ...payload, cloudUpdatedAt: updatedAt || payload.updatedAt || "" });
+  appState = next;
+  state = activeTrip();
   saveState({ keepTimestamp: true });
+  renderAll();
+}
+
+function createBlankTrip(name = "新的旅行計畫") {
+  return normalizeTrip({
+    id: createId(),
+    tripName: name,
+    startDate: "",
+    travelers: state?.travelers || 2,
+    budgetMode: state?.budgetMode || "total",
+    budgetAmount: state?.budgetAmount || 45000,
+    days: [],
+    expenses: [],
+    undoDays: null,
+  });
+}
+
+function addTrip() {
+  const name = clean(prompt("請輸入新旅遊計畫名稱", "新的旅行計畫"));
+  if (!name) return;
+  const trip = createBlankTrip(name);
+  appState.trips.push(trip);
+  appState.activeTripId = trip.id;
+  state = activeTrip();
+  saveState();
+  resetDayForm();
+  renderAll();
+}
+
+function renameTrip() {
+  const name = clean(prompt("請輸入新的旅遊計畫名稱", state.tripName));
+  if (!name) return;
+  state.tripName = name.slice(0, 60);
+  saveState();
+  renderAll();
+}
+
+function deleteTrip() {
+  if (appState.trips.length <= 1) {
+    alert("至少需要保留一個旅遊計畫。");
+    return;
+  }
+  if (!confirm(`確定刪除「${state.tripName}」嗎？此操作只會刪除此裝置目前資料，按上傳後才會同步到雲端。`)) return;
+  appState.trips = appState.trips.filter((trip) => trip.id !== state.id);
+  appState.activeTripId = appState.trips[0].id;
+  state = activeTrip();
+  saveState();
+  resetDayForm();
   renderAll();
 }
 
@@ -283,12 +391,21 @@ function resourcePrompt(resource) {
 }
 
 function renderBasics() {
+  renderTripSelector();
   document.querySelector("#tripName").value = state.tripName;
   document.querySelector("#travelers").value = state.travelers;
   document.querySelector("#startDate").value = state.startDate;
   document.querySelector("#tripNamePreview").textContent = state.tripName;
   document.querySelector("#budgetPreview").textContent = currency(budgetSummary().total);
   document.querySelector("#expensePeople").value = state.travelers;
+}
+
+function renderTripSelector() {
+  const selector = document.querySelector("#tripSelector");
+  selector.innerHTML = appState.trips
+    .map((trip) => `<option value="${escapeHtml(trip.id)}">${escapeHtml(trip.tripName)}</option>`)
+    .join("");
+  selector.value = appState.activeTripId;
 }
 
 function renderSyncStatus() {
@@ -298,9 +415,9 @@ function renderSyncStatus() {
   const mode = document.querySelector("#syncMode");
   if (mode) mode.textContent = token ? "Cloud" : "Local";
   const local = document.querySelector("#localUpdatedAt");
-  if (local) local.textContent = formatTime(state.localUpdatedAt);
+  if (local) local.textContent = formatTime(appState.localUpdatedAt);
   const cloud = document.querySelector("#cloudUpdatedAt");
-  if (cloud) cloud.textContent = formatTime(state.cloudUpdatedAt);
+  if (cloud) cloud.textContent = formatTime(appState.cloudUpdatedAt);
 }
 
 function renderDays() {
@@ -593,11 +710,11 @@ async function pushCloud() {
     const response = await fetch("/api/trip", {
       method: "PUT",
       headers: syncHeaders(),
-      body: JSON.stringify({ data: cloudPayload(), clientUpdatedAt: state.localUpdatedAt }),
+      body: JSON.stringify({ data: cloudPayload(), clientUpdatedAt: appState.localUpdatedAt }),
     });
     if (!response.ok) throw new Error(await syncError(response));
     const payload = await response.json();
-    state.cloudUpdatedAt = payload.updatedAt || new Date().toISOString();
+    appState.cloudUpdatedAt = payload.updatedAt || new Date().toISOString();
     saveState({ keepTimestamp: true });
     renderSyncStatus();
     setSyncStatus("已上傳到雲端。手機或電腦可按下載同步。", "success");
@@ -619,6 +736,13 @@ async function syncError(response) {
 }
 
 function bindEvents() {
+  document.querySelector("#tripSelector").addEventListener("change", (event) => {
+    setActiveTrip(event.target.value);
+  });
+  document.querySelector("#newTrip").addEventListener("click", addTrip);
+  document.querySelector("#renameTrip").addEventListener("click", renameTrip);
+  document.querySelector("#deleteTrip").addEventListener("click", deleteTrip);
+
   ["tripName", "travelers", "startDate"].forEach((id) => {
     document.querySelector(`#${id}`).addEventListener("input", (event) => {
       state[id] = id === "travelers" ? clampNumber(event.target.value, 1, 20, 1) : event.target.value;

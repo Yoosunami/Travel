@@ -61,7 +61,11 @@
     </header>
 
     <main class="app-shell">
-      <section class="control-strip" aria-label="旅行基本資料">
+      <section class="control-strip trip-strip" aria-label="旅行基本資料">
+        <label>
+          <span>旅遊計畫</span>
+          <select id="tripSelector"></select>
+        </label>
         <label>
           <span>旅行名稱</span>
           <input id="tripName" type="text" maxlength="60" value="Tokyo fit & food run" />
@@ -74,6 +78,11 @@
           <span>出發日期</span>
           <input id="startDate" type="date" />
         </label>
+        <div class="form-actions trip-actions" aria-label="旅遊計畫操作">
+          <button id="newTrip" class="button secondary" type="button">新增計畫</button>
+          <button id="renameTrip" class="button secondary" type="button">重新命名</button>
+          <button id="deleteTrip" class="button secondary danger-button" type="button">刪除計畫</button>
+        </div>
       </section>
 
       <section id="sync" class="section-block two-column">

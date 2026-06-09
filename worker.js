@@ -36,7 +36,7 @@ async function handleTrip(request, env) {
       return json({ error: "Invalid JSON body." }, 400);
     }
 
-    const data = normalizeTrip(body.data);
+    const data = normalizeCloudData(body.data);
     const updatedAt = new Date().toISOString();
     await env.TRAVEL_DB.prepare(
       "INSERT INTO trips (id, data, updated_at) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at",
@@ -56,8 +56,32 @@ function authorize(request, env) {
   return token === env.SYNC_SECRET ? null : "同步密碼錯誤。";
 }
 
+function normalizeCloudData(value = {}) {
+  if (!Array.isArray(value.trips)) {
+    const trip = normalizeTrip(value);
+    return {
+      version: 2,
+      activeTripId: trip.id,
+      trips: [trip],
+      localUpdatedAt: clean(value.localUpdatedAt).slice(0, 40),
+    };
+  }
+
+  const trips = value.trips.map(normalizeTrip).filter((trip) => trip.days || trip.tripName);
+  const fallback = normalizeTrip({});
+  const safeTrips = trips.length ? trips : [fallback];
+  const activeTripId = safeTrips.some((trip) => trip.id === value.activeTripId) ? value.activeTripId : safeTrips[0].id;
+  return {
+    version: 2,
+    activeTripId,
+    trips: safeTrips,
+    localUpdatedAt: clean(value.localUpdatedAt).slice(0, 40),
+  };
+}
+
 function normalizeTrip(value = {}) {
   return {
+    id: clean(value.id).slice(0, 80) || crypto.randomUUID(),
     tripName: clean(value.tripName).slice(0, 60) || "Sumi Travel",
     startDate: validDate(value.startDate) ? value.startDate : "",
     travelers: clampNumber(value.travelers, 1, 20, 1),
