@@ -462,6 +462,29 @@ textarea {
   gap: 12px;
 }
 
+.settlement-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.settlement-summary h4,
+.settlement-summary p {
+  margin: 0;
+}
+
+.amount-receive {
+  color: var(--teal);
+  font-weight: 800;
+}
+
+.amount-pay {
+  color: var(--coral);
+  font-weight: 800;
+}
+
 .icon-button {
   display: grid;
   width: 34px;

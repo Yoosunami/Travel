@@ -75,6 +75,10 @@
           <input id="travelers" type="number" min="1" max="20" step="1" value="2" />
         </label>
         <label>
+          <span>旅伴名單</span>
+          <input id="companions" type="text" maxlength="240" placeholder="Sumi, Alex（以逗號分隔）" />
+        </label>
+        <label>
           <span>出發日期</span>
           <input id="startDate" type="date" />
         </label>
@@ -244,7 +248,7 @@
             <label><span>項目</span><input id="expenseTitle" type="text" maxlength="40" placeholder="晚餐、車票、住宿訂金" required /></label>
             <label><span>付款人</span><input id="expensePayer" type="text" maxlength="24" placeholder="Sumi" required /></label>
             <label><span>金額 TWD</span><input id="expenseAmount" type="number" min="1" step="1" placeholder="1200" required /></label>
-            <label><span>分帳人數</span><input id="expensePeople" type="number" min="1" max="20" step="1" value="2" required /></label>
+            <label><span>分帳對象</span><input id="expenseParticipants" type="text" maxlength="240" placeholder="Sumi, Alex（以逗號分隔）" required /></label>
             <button class="button primary" type="submit">新增紀錄</button>
           </form>
         </div>
@@ -255,6 +259,11 @@
           </div>
           <ul id="expenseList" class="stack-list"></ul>
           <div class="total-row"><span>目前總支出</span><strong id="expenseTotal">TWD 0</strong></div>
+          <div class="settlement-summary">
+            <h4>結算摘要</h4>
+            <p class="meta">正數代表應收，負數代表應付。</p>
+            <ul id="settlementList" class="stack-list"></ul>
+          </div>
         </div>
       </section>
     </main>

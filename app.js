@@ -61,6 +61,7 @@ const defaultState = {
   tripName: "Tokyo fit & food run",
   startDate: "",
   travelers: 2,
+  companions: "",
   budgetMode: "total",
   budgetAmount: 45000,
   expenses: [],
@@ -142,10 +143,11 @@ function normalizeTrip(value) {
     tripName: clean(value.tripName).slice(0, 60) || "未命名旅行",
     startDate: validDate(value.startDate) ? value.startDate : "",
     travelers: clampNumber(value.travelers, 1, 20, defaultState.travelers),
+    companions: normalizeCompanions(value.companions),
     budgetMode: value.budgetMode === "perPerson" ? "perPerson" : "total",
     budgetAmount: clampNumber(value.budgetAmount, 0, 99999999, defaultState.budgetAmount),
     days: normalizeDays(value.days),
-    expenses: Array.isArray(value.expenses) ? value.expenses.slice(0, 500) : [],
+    expenses: normalizeExpenses(value.expenses),
     undoDays: Array.isArray(value.undoDays) ? normalizeDays(value.undoDays) : null,
   };
 }
@@ -188,10 +190,11 @@ function normalizeState(value) {
     ...defaultState,
     ...value,
     travelers: clampNumber(value.travelers, 1, 20, defaultState.travelers),
+    companions: normalizeCompanions(value.companions),
     budgetMode: value.budgetMode === "perPerson" ? "perPerson" : "total",
     budgetAmount: clampNumber(value.budgetAmount, 0, 99999999, defaultState.budgetAmount),
     days: normalizeDays(value.days),
-    expenses: Array.isArray(value.expenses) ? value.expenses.slice(0, 500) : [],
+    expenses: normalizeExpenses(value.expenses),
     undoDays: Array.isArray(value.undoDays) ? normalizeDays(value.undoDays) : null,
     localUpdatedAt: value.localUpdatedAt || new Date().toISOString(),
     cloudUpdatedAt: value.cloudUpdatedAt || "",
@@ -209,6 +212,33 @@ function normalizeDays(days) {
       notes: clean(day.notes).slice(0, 500),
     }))
     .filter((day) => day.title && day.plan);
+}
+
+function participantNames(value) {
+  const names = String(value || "")
+    .split(/[,，、\n]/)
+    .map((name) => clean(name).slice(0, 24))
+    .filter(Boolean);
+  return [...new Set(names)];
+}
+
+function normalizeCompanions(value) {
+  return participantNames(value).join(", ");
+}
+
+function normalizeExpenses(expenses) {
+  if (!Array.isArray(expenses)) return [];
+  return expenses.slice(0, 500).map((expense) => {
+    const payer = clean(expense.payer).slice(0, 24) || "Sumi";
+    const participants = participantNames(expense.participants);
+    return {
+      title: clean(expense.title).slice(0, 40) || "未命名項目",
+      payer,
+      amount: clampNumber(expense.amount, 0, 99999999, 0),
+      participants,
+      people: clampNumber(expense.people, 1, 20, participants.length || 1),
+    };
+  });
 }
 
 function saveState(options = {}) {
@@ -241,6 +271,7 @@ function createBlankTrip(name = "新的旅行計畫") {
     tripName: name,
     startDate: "",
     travelers: state?.travelers || 2,
+    companions: state?.companions || "",
     budgetMode: state?.budgetMode || "total",
     budgetAmount: state?.budgetAmount || 45000,
     days: [],
@@ -394,10 +425,12 @@ function renderBasics() {
   renderTripSelector();
   document.querySelector("#tripName").value = state.tripName;
   document.querySelector("#travelers").value = state.travelers;
+  document.querySelector("#companions").value = state.companions;
   document.querySelector("#startDate").value = state.startDate;
   document.querySelector("#tripNamePreview").textContent = state.tripName;
   document.querySelector("#budgetPreview").textContent = currency(budgetSummary().total);
-  document.querySelector("#expensePeople").value = state.travelers;
+  const participantsInput = document.querySelector("#expenseParticipants");
+  if (participantsInput && document.activeElement !== participantsInput) participantsInput.value = state.companions;
 }
 
 function renderTripSelector() {
@@ -494,10 +527,31 @@ function renderExpenses() {
   const total = state.expenses.reduce((sum, item) => sum + Number(item.amount), 0);
   list.innerHTML = state.expenses.length
     ? state.expenses
-        .map((item) => `<li><strong>${escapeHtml(item.title)}</strong><span class="meta">${escapeHtml(item.payer)} 先付 ${currency(item.amount)}，每人 ${currency(item.amount / item.people)}</span></li>`)
+        .map((item) => {
+          const people = item.participants?.length || item.people;
+          const splitLabel = item.participants?.length ? item.participants.join("、") : `${people} 人均分`;
+          return `<li><strong>${escapeHtml(item.title)}</strong><span class="meta">${escapeHtml(item.payer)} 先付 ${currency(item.amount)}，由 ${escapeHtml(splitLabel)} 分帳，每人 ${currency(item.amount / people)}</span></li>`;
+        })
         .join("")
     : `<li><span class="meta">還沒有分帳紀錄。</span></li>`;
   document.querySelector("#expenseTotal").textContent = currency(total);
+  renderSettlement();
+}
+
+function renderSettlement() {
+  const settlementList = document.querySelector("#settlementList");
+  const balances = new Map();
+  for (const item of state.expenses) {
+    const participants = item.participants?.length ? item.participants : [];
+    if (!participants.length) continue;
+    balances.set(item.payer, (balances.get(item.payer) || 0) + Number(item.amount));
+    const share = Number(item.amount) / participants.length;
+    for (const person of participants) balances.set(person, (balances.get(person) || 0) - share);
+  }
+  const rows = [...balances.entries()].sort(([a], [b]) => a.localeCompare(b, "zh-Hant"));
+  settlementList.innerHTML = rows.length
+    ? rows.map(([name, amount]) => `<li><strong>${escapeHtml(name)}</strong><span class="meta ${amount > 0.01 ? "amount-receive" : amount < -0.01 ? "amount-pay" : ""}">${amount > 0.01 ? "應收 " : amount < -0.01 ? "應付 " : "已平帳 "}${currency(Math.abs(amount))}</span></li>`).join("")
+    : `<li><span class="meta">新增具名分帳紀錄後，這裡會顯示每位旅伴的淨額。</span></li>`;
 }
 
 function renderFeedbackPreview() {
@@ -743,9 +797,9 @@ function bindEvents() {
   document.querySelector("#renameTrip").addEventListener("click", renameTrip);
   document.querySelector("#deleteTrip").addEventListener("click", deleteTrip);
 
-  ["tripName", "travelers", "startDate"].forEach((id) => {
+  ["tripName", "travelers", "startDate", "companions"].forEach((id) => {
     document.querySelector(`#${id}`).addEventListener("input", (event) => {
-      state[id] = id === "travelers" ? clampNumber(event.target.value, 1, 20, 1) : event.target.value;
+      state[id] = id === "travelers" ? clampNumber(event.target.value, 1, 20, 1) : id === "companions" ? normalizeCompanions(event.target.value) : event.target.value;
       saveState();
       renderAll();
     });
@@ -814,12 +868,12 @@ function bindEvents() {
     const title = clean(document.querySelector("#expenseTitle").value);
     const payer = clean(document.querySelector("#expensePayer").value);
     const amount = Number(document.querySelector("#expenseAmount").value);
-    const people = Number(document.querySelector("#expensePeople").value);
-    if (!title || !payer || amount <= 0 || people <= 0) return;
-    state.expenses.unshift({ title, payer, amount, people });
+    const participants = participantNames(document.querySelector("#expenseParticipants").value);
+    if (!title || !payer || amount <= 0 || !participants.length) return;
+    state.expenses.unshift({ title, payer, amount, participants, people: participants.length });
     saveState();
     event.target.reset();
-    document.querySelector("#expensePeople").value = state.travelers;
+    document.querySelector("#expenseParticipants").value = state.companions;
     renderExpenses();
   });
 

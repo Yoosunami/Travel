@@ -85,6 +85,7 @@ function normalizeTrip(value = {}) {
     tripName: clean(value.tripName).slice(0, 60) || "Sumi Travel",
     startDate: validDate(value.startDate) ? value.startDate : "",
     travelers: clampNumber(value.travelers, 1, 20, 1),
+    companions: normalizeCompanions(value.companions),
     budgetMode: value.budgetMode === "perPerson" ? "perPerson" : "total",
     budgetAmount: clampNumber(value.budgetAmount, 0, 99999999, 0),
     expenses: Array.isArray(value.expenses) ? value.expenses.slice(0, 500).map(normalizeExpense) : [],
@@ -103,12 +104,26 @@ function normalizeDay(day = {}) {
 }
 
 function normalizeExpense(expense = {}) {
+  const participants = participantNames(expense.participants);
   return {
     title: clean(expense.title).slice(0, 40) || "未命名項目",
     payer: clean(expense.payer).slice(0, 24) || "Sumi",
     amount: clampNumber(expense.amount, 0, 99999999, 0),
-    people: clampNumber(expense.people, 1, 20, 1),
+    participants,
+    people: clampNumber(expense.people, 1, 20, participants.length || 1),
   };
+}
+
+function participantNames(value) {
+  const names = String(value || "")
+    .split(/[,，、\n]/)
+    .map((name) => clean(name).slice(0, 24))
+    .filter(Boolean);
+  return [...new Set(names)];
+}
+
+function normalizeCompanions(value) {
+  return participantNames(value).join(", ");
 }
 
 function validDate(value) {
